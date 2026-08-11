@@ -10,6 +10,27 @@ import * as XLSX from 'xlsx';
 
 const PAGE_SIZE = 50;
 
+// Cấu hình các cột của bảng "Hàng hóa theo hóa đơn".
+// - key: định danh cột (dùng làm khóa lưu độ rộng)
+// - width: độ rộng mặc định (px)
+// - min: độ rộng nhỏ nhất khi kéo hẹp lại (px)
+// - resizable: cột có cho kéo giãn hay không (cột checkbox / cột nút Xóa thì không)
+const COLS = [
+  { key: 'sel',      width: 44,  min: 44,  resizable: false },
+  { key: 'stt',      width: 56,  min: 44,  resizable: true  },
+  { key: 'invoice',  width: 130, min: 80,  resizable: true  },
+  { key: 'date',     width: 110, min: 70,  resizable: true  },
+  { key: 'customer', width: 300, min: 120, resizable: true  },
+  { key: 'seller',   width: 260, min: 120, resizable: true  },
+  { key: 'sale',     width: 150, min: 80,  resizable: true  },
+  { key: 'count',    width: 100, min: 60,  resizable: true  },
+  { key: 'total',    width: 130, min: 90,  resizable: true  },
+  { key: 'dossier',  width: 140, min: 90,  resizable: true  },
+  { key: 'note',     width: 200, min: 120, resizable: true  },
+  { key: 'action',   width: 70,  min: 60,  resizable: false },
+];
+const COLW_STORAGE_KEY = 'invoiceGoods.colWidths';
+
 // Bảng invoice_goods đã lên tới hàng chục nghìn dòng — không còn tải hết về client để lọc/phân trang
 // nữa (từng khiến supabase-js tự lặp request 1000 dòng/lần để lấy hết, rất chậm). Giờ dùng RPC
 // list_invoice_goods_paged để lọc + phân trang ngay ở DB, chỉ tải đúng số dòng cần hiển thị.
@@ -31,6 +52,54 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
   const [loading, setLoading] = useState(true);
   const [sellerOptions, setSellerOptions] = useState([]);
   const [saleOptions, setSaleOptions] = useState([]);
+
+  // ── Độ rộng cột có thể kéo giãn/thu hẹp ─────────────────────────────
+  // Lưu độ rộng từng cột theo key. Đọc lại từ localStorage để giữ nguyên
+  // tùy chỉnh của người dùng qua các lần truy cập.
+  const [colWidths, setColWidths] = useState(() => {
+    const defaults = Object.fromEntries(COLS.map(c => [c.key, c.width]));
+    try {
+      const saved = JSON.parse(localStorage.getItem(COLW_STORAGE_KEY) || '{}');
+      return { ...defaults, ...saved };
+    } catch { return defaults; }
+  });
+  // Lưu lại mỗi khi độ rộng thay đổi
+  useEffect(() => {
+    try { localStorage.setItem(COLW_STORAGE_KEY, JSON.stringify(colWidths)); } catch {}
+  }, [colWidths]);
+
+  // Trạng thái kéo hiện tại: cột nào, vị trí chuột bắt đầu, độ rộng lúc bắt đầu
+  const dragRef = useRef(null);
+  const startResize = useCallback((key, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const col = COLS.find(c => c.key === key);
+    dragRef.current = { key, startX: e.clientX, startW: colWidths[key], min: col?.min || 60 };
+
+    const onMove = (ev) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const next = Math.max(d.min, d.startW + (ev.clientX - d.startX));
+      setColWidths(prev => (prev[d.key] === next ? prev : { ...prev, [d.key]: next }));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [colWidths]);
+
+  // Nhấp đúp vào tay kéo để trả cột về độ rộng mặc định
+  const resetColWidth = useCallback((key) => {
+    const col = COLS.find(c => c.key === key);
+    if (col) setColWidths(prev => ({ ...prev, [key]: col.width }));
+  }, []);
 
   const maxPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   // Đánh dấu request đang gọi mới nhất — nếu đổi filter/trang liên tiếp nhanh, request cũ trả về
@@ -334,22 +403,28 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
             {loading ? '⏳ Đang tải danh sách hóa đơn...' : hasActiveFilters ? 'Không tìm thấy hóa đơn phù hợp.' : 'Chưa có hóa đơn nào. Bấm "Nhập Excel" để bắt đầu.'}
           </div>
         ) : (
-          <table className="w-full text-sm min-w-[900px]">
+          <table className="text-sm table-fixed" style={{ width: COLS.reduce((s, c) => s + colWidths[c.key], 0) }}>
+            {/* colgroup điều khiển độ rộng thật của từng cột theo state colWidths */}
+            <colgroup>
+              {COLS.map(c => <col key={c.key} style={{ width: colWidths[c.key] }} />)}
+            </colgroup>
             <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase">
-              <th className="px-4 py-3 w-8">
+              {/* Mỗi ô tiêu đề (trừ cột không cho kéo) có 1 "tay kéo" ở mép phải:
+                  rê chuột để đổi độ rộng, nhấp đúp để trả về mặc định. */}
+              <ResizableTh col="sel"      className="px-4 py-3"                   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>
                 <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} className="cursor-pointer" />
-              </th>
-              <th className="text-left px-5 py-3 w-14">STT</th>
-              <th className="text-left px-5 py-3">Số hóa đơn</th>
-              <th className="text-left px-5 py-3">Ngày</th>
-              <th className="text-left px-5 py-3">Khách hàng</th>
-              <th className="text-left px-5 py-3">Công ty bán</th>
-              <th className="text-left px-5 py-3">Sale</th>
-              <th className="text-left px-5 py-3">Số mặt hàng</th>
-              <th className="text-right px-5 py-3">Tổng tiền</th>
-              <th className="text-center px-5 py-3">Hoàn thành hồ sơ</th>
-              <th className="text-left px-5 py-3">Ghi chú</th>
-              <th className="px-5 py-3"></th>
+              </ResizableTh>
+              <ResizableTh col="stt"      className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>STT</ResizableTh>
+              <ResizableTh col="invoice"  className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Số hóa đơn</ResizableTh>
+              <ResizableTh col="date"     className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày</ResizableTh>
+              <ResizableTh col="customer" className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Khách hàng</ResizableTh>
+              <ResizableTh col="seller"   className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Công ty bán</ResizableTh>
+              <ResizableTh col="sale"     className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Sale</ResizableTh>
+              <ResizableTh col="count"    className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Số mặt hàng</ResizableTh>
+              <ResizableTh col="total"    className="text-right px-5 py-3"         colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Tổng tiền</ResizableTh>
+              <ResizableTh col="dossier"  className="text-center px-5 py-3"        colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Hoàn thành hồ sơ</ResizableTh>
+              <ResizableTh col="note"     className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ghi chú</ResizableTh>
+              <ResizableTh col="action"   className="px-5 py-3"                    colWidths={colWidths} onResize={startResize} onReset={resetColWidth}></ResizableTh>
             </tr></thead>
             <tbody>
               {rows.map((inv, idx) => (
@@ -373,10 +448,10 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                       <div className="text-right font-semibold mt-1.5 pt-1 border-t border-gray-600">Tổng: {fmtNum(inv.total || 0)} đ</div>
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-gray-600">{inv.invoice_date || '–'}</td>
-                  <td className="px-5 py-3 text-gray-600">{inv.customer_name || '–'}{inv.customer_code ? ` (${inv.customer_code})` : ''}</td>
-                  <td className="px-5 py-3 text-gray-600">{inv.seller_name || '–'}</td>
-                  <td className="px-5 py-3 text-gray-600">{inv.sale_name || <span className="text-gray-300">—</span>}</td>
+                  <td className="px-5 py-3 text-gray-600 truncate">{inv.invoice_date || '–'}</td>
+                  <td className="px-5 py-3 text-gray-600 truncate" title={`${inv.customer_name || ''}${inv.customer_code ? ` (${inv.customer_code})` : ''}`}>{inv.customer_name || '–'}{inv.customer_code ? ` (${inv.customer_code})` : ''}</td>
+                  <td className="px-5 py-3 text-gray-600 truncate" title={inv.seller_name || ''}>{inv.seller_name || '–'}</td>
+                  <td className="px-5 py-3 text-gray-600 truncate" title={inv.sale_name || ''}>{inv.sale_name || <span className="text-gray-300">—</span>}</td>
                   <td className="px-5 py-3 text-gray-600">{inv.goods?.length || 0}</td>
                   <td className="px-5 py-3 text-right font-medium">{fmtNum(inv.total || 0)}</td>
                   <td className="px-5 py-3 text-center">
@@ -390,7 +465,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                         : <span className="text-gray-300">—</span>
                     )}
                   </td>
-                  <td className="px-5 py-3 text-gray-600 min-w-[180px]">
+                  <td className="px-5 py-3 text-gray-600">
                     {isAdmin ? (
                       <input
                         value={noteDrafts[inv.id] ?? inv.note ?? ''}
@@ -414,3 +489,28 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
     </div>
   );
 };
+
+// Ô tiêu đề bảng có "tay kéo" ở mép phải để chỉnh độ rộng cột.
+// - Rê chuột trên tay kéo: đổi độ rộng cột (xử lý ở onResize của trang).
+// - Nhấp đúp trên tay kéo: trả cột về độ rộng mặc định (onReset).
+// Cột có resizable=false (checkbox, nút Xóa) sẽ không hiện tay kéo.
+function ResizableTh({ col, className = '', children, colWidths, onResize, onReset }) {
+  const cfg = COLS.find(c => c.key === col);
+  const canResize = cfg?.resizable;
+  return (
+    <th className={`relative select-none ${className}`} style={{ width: colWidths[col] }}>
+      <div className="truncate">{children}</div>
+      {canResize && (
+        <span
+          onMouseDown={(e) => onResize(col, e)}
+          onDoubleClick={() => onReset(col)}
+          title="Kéo để chỉnh độ rộng • Nhấp đúp để trả về mặc định"
+          className="absolute top-0 right-0 h-full w-2 cursor-col-resize group flex items-center justify-center -mr-1"
+        >
+          {/* vạch mờ, đậm lên khi rê chuột vào, cho biết chỗ có thể kéo */}
+          <span className="h-1/2 w-px bg-gray-300 group-hover:bg-blue-500 group-hover:w-0.5 transition-colors" />
+        </span>
+      )}
+    </th>
+  );
+}
