@@ -309,7 +309,49 @@ const Cell = ({ col, value, onChange, onBlur, disabled }) => {
 };
 
 export const CashFlowPage = ({ batches = [], customers = {}, sellers = {}, isAdmin = false, saleProfiles = [], onSave, onDelete, initialCustomerFilter = '', onBack, onOpenPaymentRequest, isFxContract = false }) => {
-  const cols = (isFxContract ? COLS_FX : COLS).filter(c => isAdmin || c.type !== 'saleInfo'); // Hợp đồng ngoại thương dùng bộ cột rút gọn riêng; Mã/Tên Sale chỉ admin thấy
+  const baseCols = (isFxContract ? COLS_FX : COLS).filter(c => isAdmin || c.type !== 'saleInfo'); // Hợp đồng ngoại thương dùng bộ cột rút gọn riêng; Mã/Tên Sale chỉ admin thấy
+
+  // ── Cho phép KÉO GIÃN / THU HẸP độ rộng cột ─────────────────────────
+  // Lưu độ rộng người dùng tùy chỉnh theo key cột (ghi đè giá trị w mặc định).
+  // Dùng khóa lưu riêng cho FX và bản thường để 2 bảng không lẫn nhau.
+  const COLW_KEY = isFxContract ? 'cashFlowFx.colWidths' : 'cashFlow.colWidths';
+  const [colWOverride, setColWOverride] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(COLW_KEY) || '{}'); } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(COLW_KEY, JSON.stringify(colWOverride)); } catch {}
+  }, [colWOverride, COLW_KEY]);
+  // cols đã áp override: mọi chỗ render đọc col.w nên chỉ cần thay w là đủ.
+  const cols = useMemo(
+    () => baseCols.map(c => (colWOverride[c.key] ? { ...c, w: colWOverride[c.key] } : c)),
+    [baseCols, colWOverride]
+  );
+  // Kéo mép phải tiêu đề cột con để đổi độ rộng; nhấp đúp trả về mặc định.
+  const colDragRef = useRef(null);
+  const startColResize = (key, baseW, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    colDragRef.current = { key, startX: e.clientX, startW: colWOverride[key] || baseW };
+    const onMove = (ev) => {
+      const d = colDragRef.current;
+      if (!d) return;
+      const next = Math.max(60, d.startW + (ev.clientX - d.startX));
+      setColWOverride(prev => (prev[d.key] === next ? prev : { ...prev, [d.key]: next }));
+    };
+    const onUp = () => {
+      colDragRef.current = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+  const resetColW = (key) => setColWOverride(prev => { const n = { ...prev }; delete n[key]; return n; });
+
   const [view, setView] = useState('batches'); // 'batches' | 'print'
   const [search, setSearch] = useState('');
   const [customerFilter, setCustomerFilter] = useState(initialCustomerFilter);
@@ -1039,10 +1081,20 @@ export const CashFlowPage = ({ batches = [], customers = {}, sellers = {}, isAdm
             })()}
             <tr className="bg-gray-50 text-gray-500 text-xs uppercase">
               {cols.map((col, i) => (
-                <th key={col.key} style={{ minWidth: col.w, whiteSpace: "nowrap" }}
+                <th key={col.key} style={{ minWidth: col.w, whiteSpace: "nowrap", position: "relative" }}
                   className={`text-left align-bottom px-2 py-2 border-r border-gray-100 font-medium leading-snug ${col.fromDntt ? 'text-amber-700 bg-amber-50/60' : ''} ${col.type === 'computed' ? 'text-emerald-700 bg-emerald-50' : ''}`}>
                   <div>{col.label}</div>
                   <div className="normal-case font-mono opacity-70">{excelColLetter(i)}{col.formula ? ` = ${col.formula}` : ''}</div>
+                  {/* Tay kéo ở mép phải: rê để đổi độ rộng cột, nhấp đúp trả về mặc định */}
+                  <span
+                    onMouseDown={(e) => startColResize(col.key, col.w, e)}
+                    onDoubleClick={() => resetColW(col.key)}
+                    title="Kéo để chỉnh độ rộng • Nhấp đúp để trả về mặc định"
+                    className="group"
+                    style={{ position: "absolute", top: 0, right: 0, height: "100%", width: 8, cursor: "col-resize", display: "flex", alignItems: "center", justifyContent: "center", marginRight: -4, zIndex: 5 }}
+                  >
+                    <span className="group-hover:bg-blue-500" style={{ height: "50%", width: 1, background: "#cbd5e1", transition: "background 0.15s" }} />
+                  </span>
                 </th>
               ))}
             </tr>
