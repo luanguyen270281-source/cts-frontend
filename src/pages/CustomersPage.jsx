@@ -1,11 +1,20 @@
 // File: src/pages/CustomersPage.jsx
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef } from 'react';
 import { Badge } from '../components/Badge';
 import { CustomerForm } from './CustomerForm';
-import { Pagination } from '../components/Pagination';
 import { downloadCustomerTemplate, parseCustomersFile, exportCustomersToExcel } from '../utils/customerExcel';
+import { useResizableColumns, ResizableColgroup, ResizableTh } from '../components/useResizableColumns';
 
-const PAGE_SIZE = 50;
+const CUSTOMER_COLS = [
+  { key: 'stt',     width: 56,  min: 44,  resizable: true  },
+  { key: 'code',    width: 130, min: 80,  resizable: true  },
+  { key: 'company', width: 300, min: 140, resizable: true  },
+  { key: 'rep',     width: 180, min: 100, resizable: true  },
+  { key: 'saleCode',width: 110, min: 70,  resizable: true  },
+  { key: 'saleName',width: 160, min: 90,  resizable: true  },
+  { key: 'dept',    width: 150, min: 90,  resizable: true  },
+  { key: 'action',  width: 90,  min: 70,  resizable: false },
+];
 
 export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, onBulkImport, saleProfiles = [], isAdmin = false, profile = null }) => {
   const [search, setSearch] = useState('');
@@ -13,9 +22,9 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
   const [deptFilter, setDeptFilter] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState(null);
+  const rt = useResizableColumns(CUSTOMER_COLS, 'customers.colWidths');
   const [newCode, setNewCode] = useState('');
   const [importing, setImporting] = useState(false);
-  const [pageNum, setPageNum] = useState(1);
   const fileInputRef = useRef(null);
 
   // Sale tự tạo khách hàng → tự gán vào chính họ, không cần chọn
@@ -25,9 +34,7 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
 
   const deptName = (cid) => departments[cid]?.name || '';
 
-  // useMemo: danh sách khách hàng đã lên tới hơn 1000 dòng — tránh lọc lại toàn bộ mỗi lần component
-  // render vì lý do khác (VD: đang sửa 1 dòng khác), chỉ lọc lại khi customers/search/filter thực sự đổi.
-  const filtered = useMemo(() => Object.entries(customers).filter(([id, c]) => {
+  const filtered = Object.entries(customers).filter(([id, c]) => {
     const s = search.toLowerCase();
     const matchSearch = !search || c.companyName?.toLowerCase().includes(s) || id.toLowerCase().includes(s)
       || (c.taxCode || '').toLowerCase().includes(s)
@@ -36,12 +43,7 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
     const matchSale = !sf || (c.assignedSale?.code || '').toLowerCase().includes(sf) || (c.assignedSale?.name || '').toLowerCase().includes(sf);
     const matchDept = !deptFilter || c.departmentId === deptFilter;
     return matchSearch && matchSale && matchDept;
-  }), [customers, search, saleFilter, deptFilter]);
-
-  // Phân trang hiển thị (Xuất Excel vẫn xuất toàn bộ "filtered", không chỉ trang đang xem)
-  const maxPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePageNum = Math.min(pageNum, maxPage);
-  const paged = filtered.slice((safePageNum - 1) * PAGE_SIZE, safePageNum * PAGE_SIZE);
+  });
 
   const handleAdd = async (form) => {
     const code = newCode.trim();
@@ -138,26 +140,24 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
         </div>
       )}
 
-      {filtered.length > 0 && (
-        <div className="text-xs text-gray-400 mb-2">Tìm thấy {filtered.length} khách hàng</div>
-      )}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
         {filtered.length === 0 ? (
           <div className="p-10 text-center text-gray-400">Không có khách hàng nào</div>
         ) : (
-          <table className="w-full text-sm min-w-[760px]">
+          <table className="text-sm table-fixed" style={{ width: rt.totalWidth }}>
+            <ResizableColgroup rt={rt} />
             <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase">
-              <th className="text-left px-5 py-3 w-14">STT</th>
-              <th className="text-left px-5 py-3">Mã KH (gốc)</th>
-              <th className="text-left px-5 py-3">Tên công ty / HKD</th>
-              <th className="text-left px-5 py-3">Người đại diện</th>
-              <th className="text-left px-5 py-3">Mã Sale</th>
-              <th className="text-left px-5 py-3">Tên Sale</th>
-              <th className="text-left px-5 py-3">Phòng ban</th>
-              <th className="px-5 py-3"></th>
+              <ResizableTh rt={rt} col="stt" className="text-left px-5 py-3">STT</ResizableTh>
+              <ResizableTh rt={rt} col="code" className="text-left px-5 py-3">Mã KH (gốc)</ResizableTh>
+              <ResizableTh rt={rt} col="company" className="text-left px-5 py-3">Tên công ty / HKD</ResizableTh>
+              <ResizableTh rt={rt} col="rep" className="text-left px-5 py-3">Người đại diện</ResizableTh>
+              <ResizableTh rt={rt} col="saleCode" className="text-left px-5 py-3">Mã Sale</ResizableTh>
+              <ResizableTh rt={rt} col="saleName" className="text-left px-5 py-3">Tên Sale</ResizableTh>
+              <ResizableTh rt={rt} col="dept" className="text-left px-5 py-3">Phòng ban</ResizableTh>
+              <ResizableTh rt={rt} col="action" className="px-5 py-3"></ResizableTh>
             </tr></thead>
             <tbody>
-              {paged.map(([id, c], idx) => (
+              {filtered.map(([id, c], idx) => (
                 editId === id ? (
                   <tr key={id}><td colSpan="8" className="p-5 bg-blue-50/30 border-t border-gray-100">
                     <div className="text-sm font-medium text-blue-700 mb-3">{id}</div>
@@ -165,10 +165,10 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
                   </td></tr>
                 ) : (
                   <tr key={id} className="border-t border-gray-100 hover:bg-gray-50">
-                    <td className="px-5 py-3 text-gray-400">{(safePageNum - 1) * PAGE_SIZE + idx + 1}</td>
-                    <td className="px-5 py-3 font-mono font-bold text-blue-600">{id}</td>
+                    <td className="px-5 py-3 text-gray-400 truncate">{idx + 1}</td>
+                    <td className="px-5 py-3 font-mono font-bold text-blue-600 truncate">{id}</td>
                     <td className="px-5 py-3 font-medium text-gray-800 relative group cursor-default">
-                      {c.companyName}
+                      <span className="block truncate" title={c.companyName}>{c.companyName}</span>
                       <div className="hidden group-hover:block absolute z-30 left-0 top-full mt-1 w-80 bg-gray-800 text-white text-xs rounded-lg shadow-xl p-3 space-y-1.5 pointer-events-none">
                         <div><span className="text-gray-400">Mã số thuế (gốc): </span>{c.taxCode || '—'}</div>
                         {(c.branches || []).length > 0 && (
@@ -183,9 +183,9 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
                         <div><span className="text-gray-400">Người đại diện: </span>{c.representative || '—'}{c.position ? ` (${c.position})` : ''}</div>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-gray-600">{c.representative || '–'}</td>
-                    <td className="px-5 py-3 text-gray-600 font-mono">{c.assignedSale?.code || '–'}</td>
-                    <td className="px-5 py-3 text-gray-600">{c.assignedSale?.name || '–'}</td>
+                    <td className="px-5 py-3 text-gray-600 truncate" title={c.representative || ''}>{c.representative || '–'}</td>
+                    <td className="px-5 py-3 text-gray-600 font-mono truncate">{c.assignedSale?.code || '–'}</td>
+                    <td className="px-5 py-3 text-gray-600 truncate" title={c.assignedSale?.name || ''}>{c.assignedSale?.name || '–'}</td>
                     <td className="px-5 py-3">{deptName(c.departmentId) ? <Badge color="blue">{deptName(c.departmentId)}</Badge> : <span className="text-gray-400">–</span>}</td>
                     <td className="px-5 py-3 whitespace-nowrap text-right">
                       <button onClick={() => { setEditId(id); setShowAdd(false); }} className="text-blue-600 hover:text-blue-800 mr-3">Sửa</button>
@@ -197,7 +197,6 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
             </tbody>
           </table>
         )}
-        <Pagination page={safePageNum} maxPage={maxPage} onChange={setPageNum} />
       </div>
     </div>
   );

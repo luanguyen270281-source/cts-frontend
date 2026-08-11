@@ -1,42 +1,27 @@
 // File: src/pages/ContractListPage.jsx
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { Badge } from '../components/Badge';
-import { fmtNum } from '../helpers';
-import { api } from '../lib/api';
+import { calcTotals, fmtNum } from '../helpers';
 import { BulkContractViewer } from './BulkContractViewer';
 import { SaleSearchDropdown } from '../components/SaleSearchDropdown';
 import { Pagination } from '../components/Pagination';
+import { useResizableColumns, ResizableColgroup, ResizableTh } from '../components/useResizableColumns';
 
 const FEE_TYPES = ['DDH', 'BBBG', 'DDH_VC', 'BBBG_VC', 'DDH_UT', 'BBBG_UT'];
 const INVOICE_NO_TYPES = ['DDH', 'BBBG']; // chỉ loại Mua bán mới có tính năng chọn số hóa đơn có sẵn
 const PAGE_SIZE = 30;
 
-// Tìm kiếm/lọc/phân trang ngay ở server qua RPC list_contracts_paged — không còn tải hết hợp đồng
-// của 1 loại về trình duyệt rồi mới lọc/phân trang như trước (mirror đúng khuôn mẫu đã dùng cho
-// InvoiceGoodsPage.jsx). refreshVersion: App.jsx tăng số này sau mỗi lần Xóa/Sửa/Giao sale (kể cả từ
-// ContractViewer) để danh sách tự tải lại đúng trang đang xem, không cần F5.
-export const ContractListPage = ({ type, refreshVersion, customers, sellers, saleMap = {}, saleProfiles = [], setPage, setViewContract, onDelete, onDeleteMany, onAssign, onEdit }) => {
+export const ContractListPage = ({ type, contracts, customers, sellers, saleMap = {}, saleProfiles = [], setPage, setViewContract, onDelete, onDeleteMany, onAssign, onEdit }) => {
   const [assigningId, setAssigningId] = useState(null); // contractId đang được giao
   const showInvoiceNo = INVOICE_NO_TYPES.includes(type);
   const [search, setSearch] = useState('');
   const [sellerFilter, setSellerFilter] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [pageNum, setPageNum] = useState(1);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkFullContracts, setBulkFullContracts] = useState([]);
-  const [exporting, setExporting] = useState(false);
-
-  const [rows, setRows] = useState([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [page, setPageNum] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const maxPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  // Đánh dấu request mới nhất — đổi bộ lọc/trang liên tiếp nhanh thì request cũ trả về trễ hơn bị bỏ qua.
-  const requestIdRef = useRef(0);
-  const isFirstRefresh = useRef(true);
 
   const labels = {
     HDNT: 'Hợp Đồng Nguyên Tắc', DDH: 'Đơn Đặt Hàng', BBBG: 'Biên Bản Bàn Giao',
@@ -50,64 +35,58 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
   };
   const showTotal = FEE_TYPES.includes(type);
 
+  // Cấu hình cột cho bảng — có cột động (Số hóa đơn / Tổng tiền) tùy loại hợp đồng,
+  // nên danh sách cột dựng lại theo showInvoiceNo/showTotal để colgroup luôn khớp.
+  const columns = useMemo(() => {
+    const c = [
+      { key: 'sel',      width: 44,  min: 44,  resizable: false },
+      { key: 'contract', width: 150, min: 90,  resizable: true  },
+      { key: 'customer', width: 240, min: 120, resizable: true  },
+      { key: 'seller',   width: 220, min: 120, resizable: true  },
+    ];
+    if (showInvoiceNo) c.push({ key: 'invoice', width: 130, min: 80, resizable: true });
+    c.push({ key: 'date', width: 110, min: 70, resizable: true });
+    if (showTotal) c.push({ key: 'total', width: 140, min: 90, resizable: true });
+    c.push(
+      { key: 'sale',   width: 160, min: 90,  resizable: true  },
+      { key: 'dept',   width: 150, min: 90,  resizable: true  },
+      { key: 'status', width: 130, min: 90,  resizable: true  },
+      { key: 'action', width: 70,  min: 60,  resizable: false },
+    );
+    return c;
+  }, [showInvoiceNo, showTotal]);
+  const rt = useResizableColumns(columns, 'contractList.colWidths');
+
   const customerLabel = (c) => c.customerSnapshot?.companyName || customers[c.customerId]?.companyName || c.customerName || c.customerId;
   const sellerLabel = (c) => c.sellerSnapshot?.companyName || sellers[c.sellerId]?.companyName || c.sellerId || '';
+
+  const allOfType = useMemo(
+    () => Object.values(contracts).filter(c => c.type === type).sort((a, b) => (b.date || '').localeCompare(a.date || '')),
+    [contracts, type]
+  );
 
   const sellerOptions = useMemo(
     () => Object.entries(sellers).map(([id, s]) => ({ id, name: s.companyName })).sort((a, b) => a.name.localeCompare(b.name)),
     [sellers]
   );
 
-  // RPC trả về { id, contract_id, ma_sale, created_by, data:{...}, total }. Trải "data" ra thành các
-  // field cấp cao nhất (contractId, date, type, status...) — giữ đúng hình dạng object như trước đây,
-  // để phần JSX/hiển thị bên dưới không phải đổi gì thêm.
-  const mapRow = (r) => ({ ...r.data, _dbId: r.id, _maSale: r.ma_sale, _createdBy: r.created_by, total: r.total });
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allOfType.filter(c => {
+      const matchSearch = !q || c.contractId.toLowerCase().includes(q) || customerLabel(c).toLowerCase().includes(q);
+      const matchSeller = !sellerFilter || c.sellerId === sellerFilter;
+      const matchFrom = !fromDate || (c.date || '') >= fromDate;
+      const matchTo = !toDate || (c.date || '') <= toDate;
+      return matchSearch && matchSeller && matchFrom && matchTo;
+    });
+  }, [allOfType, search, sellerFilter, fromDate, toDate, customers]);
 
-  const loadPage = useCallback(async (pageToLoad) => {
-    const myRequestId = ++requestIdRef.current;
-    setLoading(true);
-    try {
-      const { rows: newRows, totalCount: tc } = await api.listContractsPaged({
-        type, search, seller: sellerFilter, dateFrom: fromDate, dateTo: toDate,
-        limit: PAGE_SIZE, offset: (pageToLoad - 1) * PAGE_SIZE,
-      });
-      if (myRequestId !== requestIdRef.current) return; // có request mới hơn chạy sau, bỏ kết quả này
-      if (newRows.length === 0 && pageToLoad > 1 && tc > 0) {
-        loadPage(pageToLoad - 1); // trang hiện tại vừa bị xóa hết dòng cuối → lùi về trang trước
-        return;
-      }
-      setRows(newRows.map(mapRow));
-      setTotalCount(tc);
-      setPageNum(pageToLoad);
-    } catch (e) {
-      console.error('Không tải được danh sách hợp đồng:', e.message);
-    } finally {
-      if (myRequestId === requestIdRef.current) setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, search, sellerFilter, fromDate, toDate]);
+  const maxPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePageNum = Math.min(pageNum, maxPage);
+  const list = filtered.slice((safePageNum - 1) * PAGE_SIZE, safePageNum * PAGE_SIZE);
+  const hasFilter = search || sellerFilter || fromDate || toDate;
 
-  // Đổi loại hợp đồng (chuyển trang HĐNT/ĐĐH/BBBG...) → xóa ngay dữ liệu cũ, tránh thoáng hiện nhầm
-  // dữ liệu loại cũ dưới tiêu đề loại mới trong lúc chờ tải xong loại mới.
-  useEffect(() => { setRows([]); setTotalCount(0); }, [type]);
-
-  // Đổi loại hợp đồng (chuyển trang HĐNT/ĐĐH/BBBG...) hoặc bộ lọc/tìm kiếm → quay về trang 1 (debounce
-  // 300ms khi gõ tìm kiếm, đổi loại/dropdown/ngày thì tải ngay). "type" PHẢI có trong deps — component
-  // này dùng chung 1 instance cho cả 9 trang danh sách (không remount khi đổi trang), thiếu "type" ở đây
-  // từng khiến chuyển trang không tải lại, hiện nhầm dữ liệu của loại cũ dưới tiêu đề loại mới.
-  useEffect(() => {
-    const t = setTimeout(() => { loadPage(1); setSelectedIds(new Set()); }, search ? 300 : 0);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, search, sellerFilter, fromDate, toDate]);
-
-  // Có thay đổi hợp đồng ở nơi khác (Xóa/Sửa/Giao sale — kể cả từ màn Xem chi tiết) → tải lại ĐÚNG
-  // trang đang xem, không quay về trang 1 (khỏi giật màn hình).
-  useEffect(() => {
-    if (isFirstRefresh.current) { isFirstRefresh.current = false; return; }
-    loadPage(page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshVersion]);
+  const resetFilters = () => { setSearch(''); setSellerFilter(''); setFromDate(''); setToDate(''); setPageNum(1); setSelectedIds(new Set()); };
 
   const toggleOne = (id) => {
     setSelectedIds(prev => {
@@ -117,9 +96,7 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
     });
   };
 
-  // Chỉ áp dụng "chọn tất cả" cho các dòng đang tải sẵn (trang hiện tại), tránh chọn nhầm hàng nghìn
-  // dòng chưa tải (giống hệt cách InvoiceGoodsPage đã làm).
-  const visibleIds = rows.map(c => c.contractId);
+  const visibleIds = list.map(c => c.contractId);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.has(id));
   const toggleAllVisible = () => {
     setSelectedIds(prev => {
@@ -132,111 +109,58 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
     });
   };
 
-  const selectedContracts = rows.filter(c => selectedIds.has(c.contractId));
+  const selectedContracts = allOfType.filter(c => selectedIds.has(c.contractId));
 
-  // "In / Tải gộp" cần đủ dữ liệu (kể cả goods) cho từng hợp đồng được chọn — danh sách chỉ giữ bản
-  // nhẹ (không có goods) từ sau khi list_contracts_slim/list_contracts_paged bỏ goods ra khỏi payload.
-  const openBulkView = async () => {
-    setBulkLoading(true);
-    try {
-      const fulls = await Promise.all(selectedContracts.map(async (c) => {
-        if (!c._dbId) return c;
-        try {
-          const res = await api.getContractFull(c._dbId);
-          return { ...res.data, _dbId: res.id, _maSale: res.ma_sale, _createdBy: res.created_by };
-        } catch { return c; } // dùng tạm bản nhẹ nếu 1 hợp đồng nào đó lỗi
-      }));
-      setBulkFullContracts(fulls);
-      setBulkOpen(true);
-    } finally {
-      setBulkLoading(false);
-    }
+  const exportToExcel = () => {
+    const data = filtered.map(c => {
+      const sale = saleMap[c._createdBy] || saleMap[c._maSale];
+      const row = {
+        'Số hợp đồng': c.contractId,
+        'Khách hàng': customerLabel(c),
+        'Bên bán': sellerLabel(c),
+        'Ngày': c.date || '',
+      };
+      if (showInvoiceNo) row['Số hóa đơn'] = c.invoiceNo || '';
+      if (showTotal) row['Tổng tiền'] = calcTotals(c.goods).total || 0;
+      row['Sale'] = sale?.name || c._maSale || '';
+      row['Phòng ban'] = sale?.deptName || '';
+      row['Trạng thái'] = c.status || '';
+      return row;
+    });
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = Object.keys(data[0] || {}).map(() => ({ wch: 22 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, labels[type].slice(0, 31));
+    const today = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `${labels[type].replace(/\s+/g, '_')}_${today}.xlsx`);
   };
-
-  const handleDeleteOne = async (c) => { await onDelete(c); };
-  const handleDeleteMany = async () => {
-    const ok = await onDeleteMany(selectedContracts);
-    if (ok) setSelectedIds(new Set());
-  };
-
-  // Xuất Excel toàn bộ hợp đồng khớp bộ lọc hiện tại (không chỉ trang đang xem) — tự lặp lấy hết
-  // các trang, chia lô 1000 dòng/lần, giống hệt cách InvoiceGoodsPage đã làm.
-  const exportToExcel = async () => {
-    setExporting(true);
-    try {
-      let all = [];
-      let offset = 0;
-      const CHUNK = 1000;
-      while (true) {
-        const { rows: chunkRows } = await api.listContractsPaged({
-          type, search, seller: sellerFilter, dateFrom: fromDate, dateTo: toDate,
-          limit: CHUNK, offset,
-        });
-        all = all.concat(chunkRows.map(mapRow));
-        if (chunkRows.length < CHUNK) break;
-        offset += CHUNK;
-        if (offset > 100000) break; // chặn an toàn
-      }
-      if (all.length === 0) { alert('Không có hợp đồng nào để xuất.'); return; }
-      const data = all.map(c => {
-        const sale = saleMap[c._createdBy] || saleMap[c._maSale];
-        const row = {
-          'Số hợp đồng': c.contractId,
-          'Khách hàng': customerLabel(c),
-          'Bên bán': sellerLabel(c),
-          'Ngày': c.date || '',
-        };
-        if (showInvoiceNo) row['Số hóa đơn'] = c.invoiceNo || '';
-        if (showTotal) row['Tổng tiền'] = c.total || 0;
-        row['Sale'] = sale?.name || c._maSale || '';
-        row['Phòng ban'] = sale?.deptName || '';
-        row['Trạng thái'] = c.status || '';
-        return row;
-      });
-      const ws = XLSX.utils.json_to_sheet(data);
-      ws['!cols'] = Object.keys(data[0] || {}).map(() => ({ wch: 22 }));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, labels[type].slice(0, 31));
-      const today = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `${labels[type].replace(/\s+/g, '_')}_${today}.xlsx`);
-    } catch (e) {
-      alert('Không xuất được Excel: ' + e.message);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const resetFilters = () => { setSearch(''); setSellerFilter(''); setFromDate(''); setToDate(''); setSelectedIds(new Set()); };
-  const hasFilter = search || sellerFilter || fromDate || toDate;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">{labels[type]}</h1>
         <div className="flex items-center gap-2">
-          <button onClick={exportToExcel} disabled={exporting || totalCount === 0}
-            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium shadow-sm disabled:opacity-50">
-            {exporting ? '⏳ Đang xuất...' : '📤 Xuất Excel'}
-          </button>
+          <button onClick={exportToExcel} disabled={filtered.length === 0}
+            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium shadow-sm disabled:opacity-50">📤 Xuất Excel</button>
           <button onClick={() => setPage(createPages[type])} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium shadow">+ Tạo mới</button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <input value={search} onChange={e => setSearch(e.target.value)}
+        <input value={search} onChange={e => { setSearch(e.target.value); setPageNum(1); }}
           placeholder="🔍 Tìm theo số hợp đồng hoặc tên khách hàng..."
           className="flex-1 min-w-48 border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-        <select value={sellerFilter} onChange={e => setSellerFilter(e.target.value)}
+        <select value={sellerFilter} onChange={e => { setSellerFilter(e.target.value); setPageNum(1); }}
           className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white min-w-[160px] focus:outline-none focus:ring-2 focus:ring-blue-300">
           <option value="">Tất cả bên bán</option>
           {sellerOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         <div className="flex items-center gap-1.5 text-sm text-gray-500">
           <span>Từ</span>
-          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+          <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPageNum(1); }}
             className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
           <span>đến</span>
-          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+          <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPageNum(1); }}
             className="border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
         </div>
         {hasFilter && (
@@ -244,18 +168,21 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
         )}
       </div>
 
-      {totalCount > 0 && (
-        <div className="text-xs text-gray-400 mb-2">Trang {page}/{maxPage} — tổng cộng {totalCount} {labels[type]}</div>
+      {hasFilter && (
+        <div className="text-xs text-gray-400 mb-2">Tìm thấy {filtered.length} / {allOfType.length} {labels[type]}{maxPage > 1 ? ` — Trang ${safePageNum}/${maxPage}` : ''}</div>
       )}
 
       {selectedIds.size > 0 && (
         <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-3">
           <div className="text-sm text-blue-800 font-medium">✓ Đã chọn {selectedIds.size} hợp đồng</div>
           <div className="flex gap-2">
-            <button onClick={openBulkView} disabled={bulkLoading} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-              {bulkLoading ? '⏳ Đang tải...' : '🖨️ In / Tải gộp'}
+            <button onClick={() => setBulkOpen(true)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700">
+              🖨️ In / Tải gộp
             </button>
-            <button onClick={handleDeleteMany} className="bg-red-50 text-red-600 border border-red-200 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-red-100">
+            <button
+              onClick={async () => { const ok = await onDeleteMany(Array.from(selectedIds)); if (ok) setSelectedIds(new Set()); }}
+              className="bg-red-50 text-red-600 border border-red-200 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-red-100"
+            >
               🗑️ Xóa gộp
             </button>
             <button onClick={() => setSelectedIds(new Set())} className="text-sm text-blue-700 hover:underline px-2">Bỏ chọn</button>
@@ -264,41 +191,42 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
       )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {rows.length === 0 ? (
-          <div className="p-12 text-center text-gray-400">
-            {loading ? '⏳ Đang tải...' : hasFilter ? `Không tìm thấy ${labels[type]} phù hợp với bộ lọc` : `Chưa có ${labels[type]} nào`}
-          </div>
+        {allOfType.length === 0 ? (
+          <div className="p-12 text-center text-gray-400">Chưa có {labels[type]} nào</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center text-gray-400">Không tìm thấy {labels[type]} phù hợp với bộ lọc</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="text-sm table-fixed" style={{ width: rt.totalWidth }}>
+            <ResizableColgroup rt={rt} />
             <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase">
-              <th className="px-4 py-3 w-8">
+              <ResizableTh rt={rt} col="sel" className="px-4 py-3">
                 <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} className="cursor-pointer" />
-              </th>
-              <th className="text-left px-5 py-3">Số hợp đồng</th>
-              <th className="text-left px-5 py-3">Khách hàng</th>
-              <th className="text-left px-5 py-3">Bên bán</th>
-              {showInvoiceNo && <th className="text-left px-5 py-3">Số hóa đơn</th>}
-              <th className="text-left px-5 py-3">Ngày</th>
-              {showTotal && <th className="text-left px-5 py-3">Tổng tiền</th>}
-              <th className="text-left px-5 py-3">Sale</th>
-              <th className="text-left px-5 py-3">Phòng ban</th>
-              <th className="text-left px-5 py-3">Trạng thái</th>
-              <th className="px-5 py-3"></th>
+              </ResizableTh>
+              <ResizableTh rt={rt} col="contract" className="text-left px-5 py-3">Số hợp đồng</ResizableTh>
+              <ResizableTh rt={rt} col="customer" className="text-left px-5 py-3">Khách hàng</ResizableTh>
+              <ResizableTh rt={rt} col="seller" className="text-left px-5 py-3">Bên bán</ResizableTh>
+              {showInvoiceNo && <ResizableTh rt={rt} col="invoice" className="text-left px-5 py-3">Số hóa đơn</ResizableTh>}
+              <ResizableTh rt={rt} col="date" className="text-left px-5 py-3">Ngày</ResizableTh>
+              {showTotal && <ResizableTh rt={rt} col="total" className="text-left px-5 py-3">Tổng tiền</ResizableTh>}
+              <ResizableTh rt={rt} col="sale" className="text-left px-5 py-3">Sale</ResizableTh>
+              <ResizableTh rt={rt} col="dept" className="text-left px-5 py-3">Phòng ban</ResizableTh>
+              <ResizableTh rt={rt} col="status" className="text-left px-5 py-3">Trạng thái</ResizableTh>
+              <ResizableTh rt={rt} col="action" className="px-5 py-3"></ResizableTh>
             </tr></thead>
             <tbody>
-              {rows.map(c => {
-                const total = c.total;
+              {list.map(c => {
+                const total = calcTotals(c.goods).total;
                 return (
-                  <tr key={c._dbId || c.contractId} className="border-t border-gray-100 hover:bg-gray-50">
+                  <tr key={c.contractId} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <input type="checkbox" checked={selectedIds.has(c.contractId)} onChange={() => toggleOne(c.contractId)} className="cursor-pointer" />
                     </td>
-                    <td className="px-5 py-3 font-mono font-bold text-blue-700">{c.contractId}</td>
-                    <td className="px-5 py-3 text-gray-700">{customerLabel(c)}</td>
-                    <td className="px-5 py-3 text-gray-500 text-xs">{sellerLabel(c)}</td>
-                    {showInvoiceNo && <td className="px-5 py-3 font-mono text-gray-500 text-xs">{c.invoiceNo || '–'}</td>}
-                    <td className="px-5 py-3 text-gray-500">{c.date}</td>
-                    {showTotal && <td className="px-5 py-3 text-gray-700 font-medium">{total ? fmtNum(total) + ' đ' : '–'}</td>}
+                    <td className="px-5 py-3 font-mono font-bold text-blue-700 truncate">{c.contractId}</td>
+                    <td className="px-5 py-3 text-gray-700 truncate" title={customerLabel(c)}>{customerLabel(c)}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs truncate" title={sellerLabel(c)}>{sellerLabel(c)}</td>
+                    {showInvoiceNo && <td className="px-5 py-3 font-mono text-gray-500 text-xs truncate">{c.invoiceNo || '–'}</td>}
+                    <td className="px-5 py-3 text-gray-500 truncate">{c.date}</td>
+                    {showTotal && <td className="px-5 py-3 text-gray-700 font-medium truncate">{total ? fmtNum(total) + ' đ' : '–'}</td>}
                     <td className="px-5 py-3 text-gray-600 text-xs">
                       {saleProfiles.length > 0 ? (
                         assigningId === c.contractId ? (
@@ -306,7 +234,7 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
                             saleProfiles={saleProfiles}
                             value={c._maSale || c._createdBy || ''}
                             onChange={async uuid => {
-                              if (uuid) { try { await onAssign(c, uuid); } catch {} }
+                              if (uuid) { try { await onAssign(c.contractId, uuid); } catch {} }
                               setAssigningId(null);
                             }}
                             placeholder="Chọn sale..."
@@ -327,7 +255,7 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
                     <td className="px-5 py-3 whitespace-nowrap text-right">
                       <button onClick={() => setViewContract(c)} className="text-blue-600 hover:text-blue-800 font-medium text-sm mr-3">Xem →</button>
                       <button onClick={() => onEdit(c)} className="text-yellow-600 hover:text-yellow-800 font-medium text-sm mr-3">Sửa</button>
-                      <button onClick={() => handleDeleteOne(c)} className="text-red-500 hover:text-red-700 font-medium text-sm">Xóa</button>
+                      <button onClick={() => onDelete(c.contractId)} className="text-red-500 hover:text-red-700 font-medium text-sm">Xóa</button>
                     </td>
                   </tr>
                 );
@@ -335,12 +263,12 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
             </tbody>
           </table>
         )}
-        <Pagination page={page} maxPage={maxPage} onChange={loadPage} disabled={loading} />
+        <Pagination page={safePageNum} maxPage={maxPage} onChange={setPageNum} />
       </div>
 
       {bulkOpen && (
         <BulkContractViewer
-          contracts={bulkFullContracts}
+          contracts={selectedContracts}
           sellers={sellers}
           customers={customers}
           onClose={() => setBulkOpen(false)}

@@ -3,6 +3,20 @@
 // gộp chung tất cả khách hàng lại, không phải xem từng khách một như "Tổng hợp công nợ".
 import { useState, useMemo } from 'react';
 import { fmtNum } from '../helpers';
+import { useResizableColumns, ResizableColgroup, ResizableTh } from '../components/useResizableColumns';
+
+const DPR_COLS = [
+  { key: 'date',      width: 110, min: 80,  resizable: true },
+  { key: 'reqNo',     width: 130, min: 90,  resizable: true },
+  { key: 'custCode',  width: 110, min: 80,  resizable: true },
+  { key: 'custName',  width: 240, min: 120, resizable: true },
+  { key: 'seller',    width: 200, min: 120, resizable: true },
+  { key: 'lots',      width: 80,  min: 60,  resizable: true },
+  { key: 'ctsRecv',   width: 140, min: 100, resizable: true },
+  { key: 'custPaid',  width: 140, min: 100, resizable: true },
+  { key: 'saleCode',  width: 110, min: 80,  resizable: true },
+  { key: 'saleName',  width: 160, min: 90,  resizable: true },
+];
 
 const fmtDateVN = (d) => {
   if (!d) return '—';
@@ -13,6 +27,7 @@ const fmtDateVN = (d) => {
 export const DailyPaymentRequestsPage = ({ batches = [], customers = {}, sellers = {}, saleProfiles = [], onOpenPaymentRequest }) => {
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState(''); // '' = tất cả ngày
+  const rt = useResizableColumns(DPR_COLS, 'dailyPaymentRequests.colWidths');
 
   const saleInfoByUuid = useMemo(() => Object.fromEntries(saleProfiles.map(p => [p.uuid, { code: p.ma_sale, name: p.name }])), [saleProfiles]);
   const customerLabel = (b) => {
@@ -80,18 +95,19 @@ export const DailyPaymentRequestsPage = ({ batches = [], customers = {}, sellers
         {filtered.length === 0 ? (
           <div className="p-10 text-center text-gray-400">Chưa có Đề Nghị Thanh Toán nào.</div>
         ) : (
-          <table className="w-full text-sm min-w-[1000px]">
+          <table className="text-sm table-fixed" style={{ width: rt.totalWidth }}>
+            <ResizableColgroup rt={rt} />
             <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase">
-              <th className="text-left px-4 py-3 font-semibold">Ngày</th>
-              <th className="text-left px-4 py-3 font-semibold">Số ĐN TT</th>
-              <th className="text-left px-4 py-3 font-semibold">Mã KH</th>
-              <th className="text-left px-4 py-3 font-semibold">Tên xuất hóa đơn</th>
-              <th className="text-left px-4 py-3 font-semibold">Cty thu tiền</th>
-              <th className="text-center px-4 py-3 font-semibold">Số lô</th>
-              <th className="text-right px-4 py-3 font-semibold">CTS phải thu</th>
-              <th className="text-right px-4 py-3 font-semibold">Đã thu khách</th>
-              <th className="text-left px-4 py-3 font-semibold">Mã Sale</th>
-              <th className="text-left px-4 py-3 font-semibold">Tên Sale</th>
+              <ResizableTh rt={rt} col="date" className="text-left px-4 py-3 font-semibold">Ngày</ResizableTh>
+              <ResizableTh rt={rt} col="reqNo" className="text-left px-4 py-3 font-semibold">Số ĐN TT</ResizableTh>
+              <ResizableTh rt={rt} col="custCode" className="text-left px-4 py-3 font-semibold">Mã KH</ResizableTh>
+              <ResizableTh rt={rt} col="custName" className="text-left px-4 py-3 font-semibold">Tên xuất hóa đơn</ResizableTh>
+              <ResizableTh rt={rt} col="seller" className="text-left px-4 py-3 font-semibold">Cty thu tiền</ResizableTh>
+              <ResizableTh rt={rt} col="lots" className="text-center px-4 py-3 font-semibold">Số lô</ResizableTh>
+              <ResizableTh rt={rt} col="ctsRecv" className="text-right px-4 py-3 font-semibold">CTS phải thu</ResizableTh>
+              <ResizableTh rt={rt} col="custPaid" className="text-right px-4 py-3 font-semibold">Đã thu khách</ResizableTh>
+              <ResizableTh rt={rt} col="saleCode" className="text-left px-4 py-3 font-semibold">Mã Sale</ResizableTh>
+              <ResizableTh rt={rt} col="saleName" className="text-left px-4 py-3 font-semibold">Tên Sale</ResizableTh>
             </tr></thead>
             <tbody>
               {filtered.map((g, i) => {
@@ -106,14 +122,14 @@ export const DailyPaymentRequestsPage = ({ batches = [], customers = {}, sellers
                         {g.requestNo}
                       </button>
                     </td>
-                    <td className="px-4 py-3 font-mono text-blue-600">{g.customerId}</td>
-                    <td className="px-4 py-3 text-gray-700">{g.customerDisplay}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{[...g.sellerNames].join(', ') || '—'}</td>
-                    <td className="px-4 py-3 text-center text-gray-600">{g.lineCount}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">{fmtNum(g.totalCtsPhaiThu)}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">{fmtNum(g.totalDaThuKhach)}</td>
-                    <td className="px-4 py-3 text-gray-600">{g.saleCode || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600">{g.saleName || '—'}</td>
+                    <td className="px-4 py-3 font-mono text-blue-600 truncate">{g.customerId}</td>
+                    <td className="px-4 py-3 text-gray-700 truncate" title={g.customerDisplay || ''}>{g.customerDisplay}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs truncate" title={[...g.sellerNames].join(', ')}>{[...g.sellerNames].join(', ') || '—'}</td>
+                    <td className="px-4 py-3 text-center text-gray-600 truncate">{g.lineCount}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 truncate">{fmtNum(g.totalCtsPhaiThu)}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 truncate">{fmtNum(g.totalDaThuKhach)}</td>
+                    <td className="px-4 py-3 text-gray-600 truncate">{g.saleCode || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 truncate" title={g.saleName || ''}>{g.saleName || '—'}</td>
                   </tr>
                 );
               })}
