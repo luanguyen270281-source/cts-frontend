@@ -57,16 +57,16 @@ export const ContractListPage = ({ type, contracts, customers, sellers, saleMap 
   }, [showInvoiceNo, showTotal]);
   const rt = useResizableColumns(columns, 'contractList.colWidths');
 
-  const customerLabel = (c) => c.customerSnapshot?.companyName || (customers || {})[c.customerId]?.companyName || c.customerName || c.customerId;
-  const sellerLabel = (c) => c.sellerSnapshot?.companyName || (sellers || {})[c.sellerId]?.companyName || c.sellerId || '';
+  const customerLabel = (c) => c.customerSnapshot?.companyName || customers[c.customerId]?.companyName || c.customerName || c.customerId;
+  const sellerLabel = (c) => c.sellerSnapshot?.companyName || sellers[c.sellerId]?.companyName || c.sellerId || '';
 
   const allOfType = useMemo(
-    () => Object.values(contracts || {}).filter(c => c.type === type).sort((a, b) => (b.date || '').localeCompare(a.date || '')),
+    () => Object.values(contracts).filter(c => c.type === type).sort((a, b) => (b.date || '').localeCompare(a.date || '')),
     [contracts, type]
   );
 
   const sellerOptions = useMemo(
-    () => Object.entries(sellers || {}).map(([id, s]) => ({ id, name: s.companyName })).sort((a, b) => a.name.localeCompare(b.name)),
+    () => Object.entries(sellers).map(([id, s]) => ({ id, name: s.companyName })).sort((a, b) => a.name.localeCompare(b.name)),
     [sellers]
   );
 
