@@ -1,22 +1,9 @@
 // File: src/pages/AdminUsersPage.jsx
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { useResizableColumns, ResizableColgroup, ResizableTh } from '../components/useResizableColumns';
-
-const ADMIN_USER_COLS = [
-  { key: 'stt',    width: 56,  min: 44,  resizable: true  },
-  { key: 'name',   width: 180, min: 100, resizable: true  },
-  { key: 'email',  width: 220, min: 120, resizable: true  },
-  { key: 'status', width: 130, min: 90,  resizable: true  },
-  { key: 'dept',   width: 170, min: 100, resizable: true  },
-  { key: 'maSale', width: 130, min: 90,  resizable: true  },
-  { key: 'role',   width: 140, min: 90,  resizable: true  },
-  { key: 'action', width: 110, min: 80,  resizable: false },
-];
 
 export const AdminUsersPage = ({ departments }) => {
   const [profiles, setProfiles] = useState([]);
-  const rt = useResizableColumns(ADMIN_USER_COLS, 'adminUsers.colWidths');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [savingId, setSavingId] = useState(null);
@@ -131,18 +118,17 @@ export const AdminUsersPage = ({ departments }) => {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
-        <table className="text-sm table-fixed" style={{ width: rt.totalWidth }}>
-          <ResizableColgroup rt={rt} />
+        <table className="w-full text-sm min-w-[900px]">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
-              <ResizableTh rt={rt} col="stt" className="text-left px-4 py-2.5">STT</ResizableTh>
-              <ResizableTh rt={rt} col="name" className="text-left px-4 py-2.5">Họ tên</ResizableTh>
-              <ResizableTh rt={rt} col="email" className="text-left px-4 py-2.5">Email</ResizableTh>
-              <ResizableTh rt={rt} col="status" className="text-left px-4 py-2.5">Trạng thái</ResizableTh>
-              <ResizableTh rt={rt} col="dept" className="text-left px-4 py-2.5">Phòng ban</ResizableTh>
-              <ResizableTh rt={rt} col="maSale" className="text-left px-4 py-2.5">Mã sale</ResizableTh>
-              <ResizableTh rt={rt} col="role" className="text-left px-4 py-2.5">Vai trò</ResizableTh>
-              <ResizableTh rt={rt} col="action" className="px-4 py-2.5"></ResizableTh>
+              <th className="text-left px-4 py-2.5 w-14">STT</th>
+              <th className="text-left px-4 py-2.5">Họ tên</th>
+              <th className="text-left px-4 py-2.5">Email</th>
+              <th className="text-left px-4 py-2.5">Trạng thái</th>
+              <th className="text-left px-4 py-2.5">Phòng ban</th>
+              <th className="text-left px-4 py-2.5">Mã sale</th>
+              <th className="text-left px-4 py-2.5">Vai trò</th>
+              <th className="px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -153,9 +139,9 @@ export const AdminUsersPage = ({ departments }) => {
               const missingMaSale = p.role !== 'admin' && !edits[p.id]?.ma_sale;
               return (
                 <tr key={p.id} className={missingMaSale ? 'bg-red-50/50' : !isApproved ? 'bg-amber-50/40' : ''}>
-                  <td className="px-4 py-2.5 text-gray-400 truncate">{idx + 1}</td>
-                  <td className="px-4 py-2.5 font-medium truncate" title={p.full_name || ''}>{p.full_name || <span className="text-gray-400">(chưa có tên)</span>}</td>
-                  <td className="px-4 py-2.5 text-gray-500 text-xs truncate" title={p.email || ''}>{p.email}</td>
+                  <td className="px-4 py-2.5 text-gray-400">{idx + 1}</td>
+                  <td className="px-4 py-2.5 font-medium">{p.full_name || <span className="text-gray-400">(chưa có tên)</span>}</td>
+                  <td className="px-4 py-2.5 text-gray-500 text-xs">{p.email}</td>
                   <td className="px-4 py-2.5">
                     {p.role === 'admin' ? (
                       <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">Admin</span>
