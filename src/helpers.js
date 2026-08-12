@@ -1,5 +1,5 @@
 // File: src/helpers.js
-import { normalizeText } from './utils/textNormalize';
+import { normalizeText } from './utils/customerExcel';
 
 // Lấy đúng Mã Sale của khách hàng để dùng khi sinh số hợp đồng/ĐĐH.
 // Một số khách hàng cũ chỉ lưu Tên Sale mà chưa lưu Mã Sale (dữ liệu trước khi có dropdown chọn sale) —
@@ -169,27 +169,38 @@ export const amountToWordsEN = (amount) => {
     }
     if (n >= 20) {
       str += tensW[Math.floor(n / 10)];
-      if (n % 10 > 0) str += '-' + onesW[n % 10].toLowerCase();
+      // Chuẩn Anh–Mỹ: viết hoa chữ cái đầu của cả phần đơn vị (Ninety-Two, không phải Ninety-two)
+      if (n % 10 > 0) str += '-' + onesW[n % 10];
     } else if (n > 0) {
       str += onesW[n];
     }
     return str;
   };
+  // Đọc một số nguyên (>=0) thành chữ theo nhóm nghìn/triệu/tỷ. Trả '' nếu bằng 0.
+  const intToWords = (num) => {
+    if (num === 0) return '';
+    const groupsW = ['', ' Thousand', ' Million', ' Billion'];
+    let n = num, groupIndex = 0;
+    const parts = [];
+    while (n > 0) {
+      const chunk = n % 1000;
+      if (chunk > 0) parts.unshift(threeDigitsEN(chunk) + groupsW[groupIndex]);
+      n = Math.floor(n / 1000);
+      groupIndex++;
+    }
+    return parts.join(' ');
+  };
   const dollars = Math.floor(Number(amount) || 0);
   const cents = Math.round(((Number(amount) || 0) - dollars) * 100);
-  if (dollars === 0 && cents === 0) return 'Zero US dollars only.';
-  const groupsW = ['', ' Thousand', ' Million', ' Billion'];
-  let n = dollars, groupIndex = 0;
-  const parts = [];
-  while (n > 0) {
-    const chunk = n % 1000;
-    if (chunk > 0) parts.unshift(threeDigitsEN(chunk) + groupsW[groupIndex]);
-    n = Math.floor(n / 1000);
-    groupIndex++;
+  if (dollars === 0 && cents === 0) return 'Zero US Dollars Only.';
+
+  let words = intToWords(dollars);
+  words += (dollars === 1 ? ' US Dollar' : ' US Dollars');
+  // Phần xu đọc thành chữ: "and Eighty-One Cents"
+  if (cents > 0) {
+    words += ' and ' + threeDigitsEN(cents) + (cents === 1 ? ' Cent' : ' Cents');
   }
-  let words = parts.join(' ') + (dollars === 1 ? ' US dollar' : ' US dollars');
-  if (cents > 0) words += ` and ${cents}/100`;
-  return words + ' only.';
+  return words + ' Only.';
 };
 
 export const buildContractId = ({ type, date, saleCode, stt, sellerName, customerName }) => {
