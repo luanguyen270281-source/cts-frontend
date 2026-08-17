@@ -24,6 +24,10 @@ const PRINT_STYLE = `
   .contract-paper .text-base { font-size: 14pt !important; }
   .contract-paper .text-xs { font-size: 11pt !important; }
   table { border-collapse: collapse; width: 100%; }
+  /* Chống cắt NGANG khi sang trang: giữ nguyên cả khối điều khoản, hàng bảng, đoạn văn */
+  .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+  tr, thead, .contract-paper p { break-inside: avoid; page-break-inside: avoid; }
+  h1, h2, h3, .font-bold { break-after: avoid; page-break-after: avoid; }
 `;
 
 const blankItem = () => ({
