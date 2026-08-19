@@ -105,15 +105,15 @@ export const SalesContractPreview = ({ c }) => {
               <td className="py-1.5">{it.origin}</td>
               <td className="py-1.5 text-right">{fmtNum(it.qty)}</td>
               <td className="py-1.5 pl-2">{it.unit}</td>
-              <td className="py-1.5 text-right">${fmtUSD(it.unitPrice)}</td>
-              <td className="py-1.5 text-right">${fmtUSD((Number(it.qty) || 0) * (Number(it.unitPrice) || 0))}</td>
+              <td className="py-1.5 text-right">{fmtUSD(it.unitPrice)}</td>
+              <td className="py-1.5 text-right">{fmtUSD((Number(it.qty) || 0) * (Number(it.unitPrice) || 0))}</td>
             </tr>
           ))}
           <tr>
             <td colSpan={6} className="py-1.5 text-right font-semibold">
               Total amount ({c.incotermsRef || 'Incoterms 2000'}) in currency: USD
             </td>
-            <td className="py-1.5 text-right font-semibold">${fmtUSD(total)}</td>
+            <td className="py-1.5 text-right font-semibold">{fmtUSD(total)}</td>
           </tr>
         </tbody>
       </table>
