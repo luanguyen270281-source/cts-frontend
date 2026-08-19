@@ -122,7 +122,7 @@ export const SalesContractPreview = ({ c }) => {
 
       <p className="text-xs mb-4">Quality: {c.quality}</p>
 
-      <div className="grid grid-cols-2 gap-6 mb-4">
+      <div className="grid grid-cols-2 gap-6 mb-4 avoid-break">
         <div>
           <p className="font-bold text-xs mb-1">2. Shipping terms: {c.incotermsRef || 'Incoterms 2000'} to be referred</p>
           <p className="text-xs mb-0.5">Shipping method: {c.shippingMethod}</p>
@@ -143,7 +143,7 @@ export const SalesContractPreview = ({ c }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6 mb-4">
+      <div className="grid grid-cols-2 gap-6 mb-4 avoid-break">
         <div>
           <p className="font-bold text-xs mb-1">4. Payments:</p>
           <p className="text-xs mb-1">{c.paymentTerm}</p>
