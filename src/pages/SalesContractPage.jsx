@@ -45,7 +45,7 @@ const blankForm = () => ({
   quality: "First class and 100% brand new, conformed to manufacturer's specification.",
   incotermsRef: 'Incoterms 2000',
   shippingMethod: 'By Truck',
-  incoterms: 'DAF - Huu Nghi Border Gate',
+  incoterms: 'DAF - Huu Nghi Border Gate or DAF - Tan Thanh Border Gate',
   portLoading: 'Pingxiang, China',
   portDischarge: 'Huu Nghi, Lang Son, Vietnam',
   partialShipment: 'Allowed',
@@ -256,7 +256,7 @@ export const SalesContractPage = ({ salesContracts, customers, foreignSellers = 
                       <td className="px-4 py-2.5 text-gray-600">{d.date}</td>
                       <td className="px-4 py-2.5 text-gray-600 truncate max-w-[180px]">{d.seller?.name}</td>
                       <td className="px-4 py-2.5 text-gray-600 truncate max-w-[180px]">{d.buyer?.name}</td>
-                      <td className="px-4 py-2.5 text-right font-medium text-emerald-700">${fmtNum(t)}</td>
+                      <td className="px-4 py-2.5 text-right font-medium text-emerald-700">{fmtNum(t)}</td>
                       <td className="px-4 py-2.5 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
                         <button onClick={() => openEdit(row)} className="text-amber-600 hover:underline text-xs mr-3">Sửa</button>
                         <button onClick={() => handleDelete(row)} className="text-red-500 hover:underline text-xs">Xóa</button>
@@ -409,7 +409,7 @@ export const SalesContractPage = ({ salesContracts, customers, foreignSellers = 
                       <td className="py-2 px-2 align-top"><TextInput type="number" value={it.qty} onChange={e => updateItem(it.id, 'qty', e.target.value)} /></td>
                       <td className="py-2 px-2 align-top"><TextInput value={it.unit} onChange={e => updateItem(it.id, 'unit', e.target.value)} /></td>
                       <td className="py-2 px-2 align-top"><TextInput type="number" value={it.unitPrice} onChange={e => updateItem(it.id, 'unitPrice', e.target.value)} /></td>
-                      <td className="py-2 px-2 text-right font-mono text-sm align-top pt-3">${fmtNum((Number(it.qty) || 0) * (Number(it.unitPrice) || 0))}</td>
+                      <td className="py-2 px-2 text-right font-mono text-sm align-top pt-3">{fmtNum((Number(it.qty) || 0) * (Number(it.unitPrice) || 0))}</td>
                       <td className="py-2 text-center align-top pt-3">
                         <button onClick={() => removeItem(it.id)} className="text-gray-300 hover:text-red-500">✕</button>
                       </td>
@@ -422,7 +422,7 @@ export const SalesContractPage = ({ salesContracts, customers, foreignSellers = 
             <div className="flex justify-end mt-4 pt-3 border-t border-gray-100">
               <div className="text-right">
                 <p className="text-xs text-gray-500">Tổng giá trị hợp đồng</p>
-                <p className="font-mono text-xl font-bold text-gray-800">${fmtNum(total)}</p>
+                <p className="font-mono text-xl font-bold text-gray-800">{fmtNum(total)}</p>
                 <p className="text-xs italic text-gray-500 max-w-md">{amountToWordsEN(total)}</p>
               </div>
             </div>
