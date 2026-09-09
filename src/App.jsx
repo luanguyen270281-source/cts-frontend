@@ -3,6 +3,8 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { supabase } from './lib/supabase';
 import { api } from './lib/api';
 import { Sidebar } from './components/Sidebar';
+import ErrorBoundary from './components/ErrorBoundary';
+import ErrorCard from './components/ErrorCard';
 
 // Mỗi trang được tải riêng (dynamic import) thay vì gộp chung 1 file JS —
 // trước đây toàn bộ ~30 trang (kể cả các trang rất nặng như CashFlowPage,
@@ -46,6 +48,13 @@ const PageLoadingFallback = () => (
     <div className="text-center"><div className="text-4xl mb-3">📋</div><div>Đang tải...</div></div>
   </div>
 );
+
+// renderPage() dựng JSX của trang hiện tại bằng 1 lệnh gọi hàm thường. Nếu gọi thẳng
+// renderPage() ngay trong JSX của App, lệnh gọi đó chạy trong lúc App tự render (trước khi
+// ErrorBoundary/Suspense bên dưới thậm chí được React tạo ra) — lỗi ném ra ở đó sẽ vượt qua
+// ErrorBoundary riêng của từng trang và làm sập luôn cả app. Bọc trong 1 component con để
+// renderPage() chỉ chạy trong lúc React render component NÀY, tức là đã ở trong ErrorBoundary.
+const PageContent = ({ renderPage }) => renderPage();
 
 const DOC_TYPE_MAP = {
   HDNT: 'hd_nguyen_tac', DDH: 'don_dat_hang', BBBG: 'bbbg',
@@ -555,24 +564,26 @@ export default function App() {
     );
   }
 
-  if (!session) return <Suspense fallback={<PageLoadingFallback />}><LoginPage /></Suspense>;
+  if (!session) return <ErrorBoundary><Suspense fallback={<PageLoadingFallback />}><LoginPage /></Suspense></ErrorBoundary>;
 
   // Dù đã có session (do Supabase tạo tạm khi bấm link email), vẫn phải đặt mật khẩu mới xong
   // mới cho vào app — tránh trường hợp ai nhặt được link email cũ cũng vào thẳng được tài khoản.
-  if (isPasswordRecovery) return <Suspense fallback={<PageLoadingFallback />}><ResetPasswordPage onDone={() => setIsPasswordRecovery(false)} /></Suspense>;
+  if (isPasswordRecovery) return (
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoadingFallback />}>
+        <ResetPasswordPage onDone={() => setIsPasswordRecovery(false)} />
+      </Suspense>
+    </ErrorBoundary>
+  );
 
   if (loadError) {
     return (
       <div className="flex items-center justify-center min-h-screen text-gray-400">
-        <div className="text-center max-w-sm px-4">
-          <div className="text-4xl mb-3">⚠️</div>
-          <div className="text-gray-700 font-medium mb-1">Không tải được dữ liệu</div>
-          <div className="text-sm text-gray-500 mb-4">{loadError}</div>
-          <button onClick={() => window.location.reload()}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium shadow">
-            🔄 Thử lại
-          </button>
-        </div>
+        <ErrorCard
+          title="Không tải được dữ liệu"
+          message={loadError}
+          onReload={() => window.location.reload()}
+        />
       </div>
     );
   }
@@ -589,10 +600,10 @@ export default function App() {
   // Chưa điền đủ thông tin (tên + phòng ban + mã sale) → yêu cầu tự điền trước khi vào app
   const isAdmin = profile?.role === 'admin';
   if (profile && profile.role !== 'admin' && (!profile.full_name || !profile.department_id || !profile.ma_sale)) {
-    return <Suspense fallback={<PageLoadingFallback />}>
+    return <ErrorBoundary><Suspense fallback={<PageLoadingFallback />}>
       <CompleteProfilePage profile={profile} departments={departments} isAdmin={isAdmin}
         onDone={(updated) => setProfile(updated)} />
-    </Suspense>;
+    </Suspense></ErrorBoundary>;
   }
 
   const counts = dashboardStats
@@ -684,13 +695,23 @@ export default function App() {
     }
   };
 
+  const closeContractViewer = () => setViewContract(null);
+
   return (
     <div className="flex" style={{ minHeight: '100vh' }}>
-      <Sidebar page={page} setPage={(p) => {
-        if (p === 'payment_request') { setPaymentRequestCustomerId(''); setPaymentRequestReqNo(null); setPaymentRequestBatchIds(null); }
-        if (p === 'fx_contract_payment_request') { setFxPaymentRequestCustomerId(''); setFxPaymentRequestReqNo(null); setFxPaymentRequestBatchIds(null); }
-        setPage(p);
-      }} counts={counts} onLogout={handleLogout} isAdmin={isAdmin} />
+      <ErrorBoundary
+        fallback={() => (
+          <aside className="w-64 bg-blue-950 text-blue-200 flex items-center justify-center p-4 text-center text-sm no-print" style={{ minHeight: '100vh' }}>
+            ⚠️ Menu bị lỗi.<br />Vui lòng tải lại trang.
+          </aside>
+        )}
+      >
+        <Sidebar page={page} setPage={(p) => {
+          if (p === 'payment_request') { setPaymentRequestCustomerId(''); setPaymentRequestReqNo(null); setPaymentRequestBatchIds(null); }
+          if (p === 'fx_contract_payment_request') { setFxPaymentRequestCustomerId(''); setFxPaymentRequestReqNo(null); setFxPaymentRequestBatchIds(null); }
+          setPage(p);
+        }} counts={counts} onLogout={handleLogout} isAdmin={isAdmin} />
+      </ErrorBoundary>
       <main className="flex-1 p-6 overflow-auto bg-gray-50" style={{ minHeight: '100vh' }}>
         {noSellers && page !== 'settings' && (
           <div className="mb-4 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-sm text-amber-800 flex items-center justify-between">
@@ -698,23 +719,47 @@ export default function App() {
             {isAdmin && <button onClick={() => setPage('settings')} className="ml-4 underline font-medium hover:text-amber-900">Thêm ngay →</button>}
           </div>
         )}
-        <Suspense fallback={<PageLoadingFallback />}>{renderPage()}</Suspense>
+        {/* key={page}: đổi trang tự remount ErrorBoundary (React lo state ban đầu), khỏi cần tự viết lại logic reset */}
+        <ErrorBoundary key={page}>
+          <Suspense fallback={<PageLoadingFallback />}>
+            <PageContent renderPage={renderPage} />
+          </Suspense>
+        </ErrorBoundary>
       </main>
       {viewContract && (
-        <Suspense fallback={<PageLoadingFallback />}>
-        <ContractViewer
-          contract={viewContract}
-          sellers={sellers}
-          customers={customers}
-          saleMap={saleMap}
-          saleProfiles={saleProfiles}
-          isAdmin={isAdmin}
-          onAssign={assignContract}
-          onClose={() => setViewContract(null)}
-          onDelete={deleteContract}
-          onEdit={handleEditContract}
-        />
-        </Suspense>
+        <ErrorBoundary
+          key={viewContract?._dbId}
+          fallback={(_error, retry) => (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-lg py-8">
+                <ErrorCard
+                  title="Không hiển thị được hợp đồng này"
+                  message="Đã có lỗi xảy ra."
+                  onRetry={retry}
+                  onReload={() => window.location.reload()}
+                  extraActions={
+                    <button onClick={closeContractViewer} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium">Đóng</button>
+                  }
+                />
+              </div>
+            </div>
+          )}
+        >
+          <Suspense fallback={<PageLoadingFallback />}>
+          <ContractViewer
+            contract={viewContract}
+            sellers={sellers}
+            customers={customers}
+            saleMap={saleMap}
+            saleProfiles={saleProfiles}
+            isAdmin={isAdmin}
+            onAssign={assignContract}
+            onClose={closeContractViewer}
+            onDelete={deleteContract}
+            onEdit={handleEditContract}
+          />
+          </Suspense>
+        </ErrorBoundary>
       )}
     </div>
   );

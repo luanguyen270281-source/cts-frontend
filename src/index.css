@@ -12,3 +12,11 @@ input[type=number]::-webkit-inner-spin-button { opacity: 1; }
 .no-spinner::-webkit-inner-spin-button,
 .no-spinner::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .no-spinner { -moz-appearance: textfield; }
+
+/* Bảng rộng hơn màn hình (VD: Hàng hóa theo hóa đơn) — làm thanh cuộn ngang hiện rõ, đủ dày để
+   nhận ra ngay là còn cột ẩn bên phải, thay vì thanh cuộn mặc định của trình duyệt (mảnh/dễ bỏ qua). */
+.wide-table-scroll { scrollbar-width: auto; scrollbar-color: #93c5fd #f3f4f6; }
+.wide-table-scroll::-webkit-scrollbar { height: 14px; }
+.wide-table-scroll::-webkit-scrollbar-track { background: #f3f4f6; }
+.wide-table-scroll::-webkit-scrollbar-thumb { background: #93c5fd; border-radius: 8px; border: 3px solid #f3f4f6; }
+.wide-table-scroll::-webkit-scrollbar-thumb:hover { background: #60a5fa; }
