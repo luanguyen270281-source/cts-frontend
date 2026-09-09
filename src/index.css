@@ -20,3 +20,8 @@ input[type=number]::-webkit-inner-spin-button { opacity: 1; }
 .wide-table-scroll::-webkit-scrollbar-track { background: #f3f4f6; }
 .wide-table-scroll::-webkit-scrollbar-thumb { background: #93c5fd; border-radius: 8px; border: 3px solid #f3f4f6; }
 .wide-table-scroll::-webkit-scrollbar-thumb:hover { background: #60a5fa; }
+
+/* Ô ngày trống (chưa chọn) trong bảng "Hàng hóa theo hóa đơn" — ẩn placeholder mm/dd/yyyy
+   của trình duyệt khi ô chưa có giá trị và chưa được bấm vào, đỡ rối mắt khi có nhiều dòng
+   chưa nhập. Khi bấm vào để nhập thì hiện lại bình thường (:focus). */
+input[type="date"].wf-date-empty:not(:focus) { color: transparent; }

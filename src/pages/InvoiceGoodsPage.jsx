@@ -29,20 +29,22 @@ const COLS = [
   { key: 'total',    width: 130, min: 90,  resizable: true  },
   { key: 'dossier',  width: 180, min: 90,  resizable: true  },
   { key: 'note',     width: 200, min: 120, resizable: true  },
-  // 7 cột theo dõi hồ sơ SALE GỬI → NHÂN SỰ GỬI → KẾ TOÁN NHẬN — để cuối bảng, trước cột Xóa
+  // 7 cột theo dõi hồ sơ SALE GỬI → NHÂN SỰ GỬI → KẾ TOÁN NHẬN — để cuối bảng, trước cột Xóa.
+  // Độ rộng các cột "Ngày ..." và "Hạn (số ngày)" đủ rộng để tiêu đề nằm gọn 1 dòng, không
+  // xuống dòng lệch nhau giữa các cột (so le rất khó nhìn).
   { key: 'sale_sent',                width: 110, min: 90,  resizable: true },
-  { key: 'sale_sent_date',           width: 140, min: 110, resizable: true },
+  { key: 'sale_sent_date',           width: 160, min: 110, resizable: true },
   { key: 'hr_sent',                  width: 110, min: 90,  resizable: true },
-  { key: 'hr_sent_date',             width: 140, min: 110, resizable: true },
+  { key: 'hr_sent_date',             width: 190, min: 110, resizable: true },
   { key: 'accounting_received',      width: 110, min: 90,  resizable: true },
-  { key: 'accounting_received_date', width: 140, min: 110, resizable: true },
-  { key: 'deadline_days',            width: 110, min: 90,  resizable: true },
+  { key: 'accounting_received_date', width: 190, min: 110, resizable: true },
+  { key: 'deadline_days',            width: 130, min: 90,  resizable: true },
   { key: 'action',   width: 70,  min: 60,  resizable: false },
 ];
 // Đổi tên key (thêm .v2) khi đổi độ rộng mặc định trong COLS — nếu giữ nguyên tên cũ, độ rộng
 // đã lưu sẵn trong trình duyệt của người đã từng mở trang này sẽ đè lên, khiến mặc định mới
 // không bao giờ áp dụng được cho tới khi họ tự kéo/reset lại từng cột.
-const COLW_STORAGE_KEY = 'invoiceGoods.colWidths.v2';
+const COLW_STORAGE_KEY = 'invoiceGoods.colWidths.v3';
 
 // Bảng invoice_goods đã lên tới hàng chục nghìn dòng — không còn tải hết về client để lọc/phân trang
 // nữa (từng khiến supabase-js tự lặp request 1000 dòng/lần để lấy hết, rất chậm). Giờ dùng RPC
@@ -532,12 +534,12 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
         <div>
           <label className="block text-xs text-gray-500 mb-1">Từ ngày</label>
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            className={`border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${dateFrom ? '' : 'wf-date-empty'}`} />
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Đến ngày</label>
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            className={`border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${dateTo ? '' : 'wf-date-empty'}`} />
         </div>
 
         {hasActiveFilters && (
@@ -702,7 +704,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saved'}>
                       <input type="date" value={inv.sale_sent_date || ''} disabled={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saving'}
                         onChange={e => saveWorkflowDate(inv.id, 'sale_sent_date', e.target.value, inv.sale_sent_date)}
-                        className="w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                        className={`w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 ${inv.sale_sent_date ? '' : 'wf-date-empty'}`} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
@@ -716,7 +718,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saved'}>
                       <input type="date" value={inv.hr_sent_date || ''} disabled={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saving'}
                         onChange={e => saveWorkflowDate(inv.id, 'hr_sent_date', e.target.value, inv.hr_sent_date)}
-                        className="w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                        className={`w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 ${inv.hr_sent_date ? '' : 'wf-date-empty'}`} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
@@ -730,7 +732,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saved'}>
                       <input type="date" value={inv.accounting_received_date || ''} disabled={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saving'}
                         onChange={e => saveWorkflowDate(inv.id, 'accounting_received_date', e.target.value, inv.accounting_received_date)}
-                        className="w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                        className={`w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 ${inv.accounting_received_date ? '' : 'wf-date-empty'}`} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
