@@ -7,6 +7,13 @@
 // của Edge Function "clever-handler" trên Supabase, chỉ admin project mới cấu hình được.
 import { supabase } from './supabase';
 const TABLE = 'app_storage';
+// 7 cột theo dõi hồ sơ "SALE GỬI / NHÂN SỰ GỬI / KẾ TOÁN NHẬN" trên bảng invoice_goods.
+const INVOICE_GOODS_WORKFLOW_FIELDS = [
+  'sale_sent', 'sale_sent_date',
+  'hr_sent', 'hr_sent_date',
+  'accounting_received', 'accounting_received_date',
+  'deadline_days',
+];
 export const api = {
   // ───────── Key-Value storage (Supabase) ─────────
   async get(key, _shared = false) {
@@ -331,19 +338,32 @@ export const api = {
     if (error) throw new Error(error.message);
   },
 
+  // Cập nhật 1 cột trong nhóm "theo dõi hồ sơ SALE GỬI / NHÂN SỰ GỬI / KẾ TOÁN NHẬN" — Sale (không
+  // chỉ Admin) sửa được, nhưng có policy + trigger riêng trong Supabase chặn non-admin sửa các
+  // cột invoice_goods khác (số tiền, hàng hóa, ghi chú...). Whitelist tên cột để tránh nhận field
+  // lạ từ UI (không phải để chặn quyền — quyền đã do DB tự lo).
+  async updateInvoiceGoodsWorkflowField(id, field, value) {
+    if (!INVOICE_GOODS_WORKFLOW_FIELDS.includes(field)) throw new Error('Cột không hợp lệ: ' + field);
+    const { error } = await supabase.from('invoice_goods').update({ [field]: value }).eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
   // Cập nhật trạng thái "Hoàn thành hồ sơ" (chỉ admin) — dùng cột dossier_completed trên bảng invoice_goods
   async updateInvoiceGoodsCompleted(id, completed) {
     const { error } = await supabase.from('invoice_goods').update({ dossier_completed: completed }).eq('id', id);
     if (error) throw new Error(error.message);
   },
 
-  // Lấy trạng thái hoàn thành hồ sơ cho 1 loạt id → trả về { [id]: true/false }
-  async getInvoiceGoodsCompletedMap(ids) {
+  // Lấy "Hoàn thành hồ sơ" + 7 cột theo dõi hồ sơ cho 1 loạt id, trong 1 lần gọi Supabase duy nhất
+  // (trước đây tách 2 hàm/2 round-trip riêng dù cùng bảng, cùng danh sách id — không cần thiết).
+  // → trả về { [id]: { dossier_completed, sale_sent, sale_sent_date, ... } }
+  async getInvoiceGoodsExtraMap(ids) {
     if (!ids || ids.length === 0) return {};
-    const { data, error } = await supabase.from('invoice_goods').select('id, dossier_completed').in('id', ids);
+    const { data, error } = await supabase.from('invoice_goods')
+      .select(`id, dossier_completed, ${INVOICE_GOODS_WORKFLOW_FIELDS.join(', ')}`).in('id', ids);
     if (error) throw new Error(error.message);
     const map = {};
-    (data || []).forEach(r => { map[r.id] = r.dossier_completed; });
+    (data || []).forEach(r => { const { id, ...rest } = r; map[id] = rest; });
     return map;
   },
 
