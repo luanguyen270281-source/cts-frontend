@@ -19,7 +19,7 @@ const cellLabel = { border: '1px solid #000', padding: '6px 10px', fontWeight: '
 const cellValue = { border: '1px solid #000', padding: '6px 10px', fontSize: '12.5px', verticalAlign: 'top' };
 const cellValueBold = { ...cellValue, fontWeight: 'bold' };
 
-const PartyTable = ({ heading, p }) => (
+const PartyTable = ({ heading, p, taxCode }) => (
   <>
     <p className="font-bold text-xs mb-1">{heading}</p>
     <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
@@ -36,6 +36,12 @@ const PartyTable = ({ heading, p }) => (
           <td style={cellLabel}>Position:</td>
           <td style={cellValue}>{p.position}</td>
         </tr>
+        {taxCode && (
+          <tr>
+            <td style={cellLabel}>Vat code:</td>
+            <td style={cellValue} colSpan={3}>{taxCode}</td>
+          </tr>
+        )}
       </tbody>
     </table>
   </>
@@ -77,7 +83,7 @@ export const SalesContractPreview = ({ c }) => {
       <p className="mb-4 text-xs">This agreement is drawn between the following parties:</p>
 
       <PartyTable heading="The Seller (Party A):" p={seller} />
-      <PartyTable heading="The Buyer (Party B):" p={buyer} />
+      <PartyTable heading="The Buyer (Party B):" p={buyer} taxCode={buyer.taxCode} />
 
       <p className="text-xs mb-4 italic">
         In accordance with the seller's quotation, we are mutually agreed between two parties to sign this sales contract on the terms and conditions as following:

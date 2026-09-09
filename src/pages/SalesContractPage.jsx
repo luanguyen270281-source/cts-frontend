@@ -200,6 +200,7 @@ export const SalesContractPage = ({ salesContracts, customers, foreignSellers = 
         buyer: {
           name: customer.companyNameEN || customer.companyName || '', address: customer.addressEN || customer.address || '',
           rep: customer.representativeEN || customer.representative || '', position: customer.positionEN || customer.position || 'Director',
+          taxCode: customer.taxCode || '',
         },
       };
       const row = await onSave(editingId, { contract_no: data.contractNo, date: data.date, buyer_customer_id: data.customerId, data });
@@ -495,6 +496,9 @@ export const SalesContractPage = ({ salesContracts, customers, foreignSellers = 
   // ───────── PREVIEW / IN / XUẤT FILE ─────────
   if (view === 'preview' && form) {
     const filenameBase = form.contractNo || 'sales-contract';
+    // Hợp đồng cũ lưu trước khi có Vat code có thể chưa có buyer.taxCode trong data đã lưu
+    // → lấy tạm MST hiện tại của khách hàng (customer) để hiện đúng, khỏi bắt sửa lại từng hợp đồng cũ.
+    const previewData = { ...form, buyer: { ...form.buyer, taxCode: form.buyer?.taxCode || customer.taxCode || '' } };
     return (
       <div className="max-w-4xl">
         <div className="flex items-center justify-between mb-5 no-print flex-wrap gap-2">
@@ -523,7 +527,7 @@ export const SalesContractPage = ({ salesContracts, customers, foreignSellers = 
         </div>
         <Alert type="info">Bản xem trước chỉ hiện đúng thông tin gửi cho khách (không có Mã HS / Mô tả tiếng Việt nội bộ).</Alert>
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-10" id="sc-print-zone">
-          <SalesContractPreview c={form} />
+          <SalesContractPreview c={previewData} />
         </div>
       </div>
     );
