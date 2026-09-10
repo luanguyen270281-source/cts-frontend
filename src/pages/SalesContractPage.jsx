@@ -33,6 +33,7 @@ const PRINT_STYLE = `
 const blankItem = () => ({
   id: Math.random().toString(36).slice(2, 9),
   descriptionEN: '', vietnameseName: '', hsCode: '', origin: 'CHINA', qty: '', unit: 'PCE', unitPrice: '',
+  translatedFrom: '', // mô tả VN đã dùng để dịch ra descriptionEN hiện tại — dùng để tránh gọi AI dịch lại khi nội dung không đổi
 });
 
 const blankForm = () => ({
@@ -110,7 +111,11 @@ export const SalesContractPage = ({ salesContracts, customers, foreignSellers = 
   const openNew = () => { setForm(blankForm()); setEditingId(null); setSelectedForeignSellerId(''); setView('form'); };
 
   const openEdit = (row) => {
-    setForm({ ...blankForm(), ...row.data, customerId: row.data.customerId || '', branchIndex: row.data.branchIndex ?? null });
+    const data = { ...blankForm(), ...row.data, customerId: row.data.customerId || '', branchIndex: row.data.branchIndex ?? null };
+    // Hợp đồng đã lưu coi như descriptionEN đang khớp với vietnameseName hiện tại — đánh dấu đã dịch
+    // để không tự gọi AI dịch lại ngay khi người dùng chỉ blur qua ô mà chưa sửa gì.
+    data.items = (data.items || []).map(it => ({ ...it, translatedFrom: it.translatedFrom ?? it.vietnameseName ?? '' }));
+    setForm(data);
     setEditingId(row.id);
     setSelectedForeignSellerId('');
     setView('form');
@@ -131,19 +136,23 @@ export const SalesContractPage = ({ salesContracts, customers, foreignSellers = 
 
   const updateItem = (id, key, value) =>
     setForm(prev => ({ ...prev, items: prev.items.map(it => (it.id === id ? { ...it, [key]: value } : it)) }));
+  const updateItemFields = (id, patch) =>
+    setForm(prev => ({ ...prev, items: prev.items.map(it => (it.id === id ? { ...it, ...patch } : it)) }));
   const addItem = () => setForm(prev => ({ ...prev, items: [...prev.items, blankItem()] }));
   const removeItem = (id) =>
     setForm(prev => ({ ...prev, items: prev.items.length > 1 ? prev.items.filter(it => it.id !== id) : prev.items }));
 
   // Tự động dịch mô tả tiếng Việt → tiếng Anh khi rời khỏi ô (blur) hoặc bấm nút "Dịch" thủ công.
-  const translateItem = async (id) => {
+  const translateItem = async (id, { force = false } = {}) => {
     const it = form.items.find(x => x.id === id);
     if (!it || !it.vietnameseName?.trim()) return;
+    // Nội dung tiếng Việt chưa đổi so với lần dịch gần nhất → khỏi gọi AI lại (trừ khi bấm nút "Dịch lại" thủ công).
+    if (!force && it.vietnameseName.trim() === it.translatedFrom) return;
     setTranslatingIds(prev => new Set(prev).add(id));
     setTranslateErrorIds(prev => { const n = new Set(prev); n.delete(id); return n; });
     try {
       const en = await api.translateGoodsDescription(it.vietnameseName);
-      if (en) updateItem(id, 'descriptionEN', en);
+      if (en) updateItemFields(id, { descriptionEN: en, translatedFrom: it.vietnameseName.trim() });
     } catch (e) {
       setTranslateErrorIds(prev => new Set(prev).add(id));
       console.error('Dịch mô tả lỗi:', e.message);
@@ -398,7 +407,7 @@ export const SalesContractPage = ({ salesContracts, customers, foreignSellers = 
                             onBlur={() => translateItem(it.id)}
                             placeholder="Áo tank nữ, model WX307..."
                           />
-                          <button type="button" title="Dịch lại sang tiếng Anh" onClick={() => translateItem(it.id)}
+                          <button type="button" title="Dịch lại sang tiếng Anh" onClick={() => translateItem(it.id, { force: true })}
                             disabled={translatingIds.has(it.id)} className="shrink-0 text-sm disabled:opacity-40 mt-1.5">
                             {translatingIds.has(it.id) ? '⏳' : '🔄'}
                           </button>
