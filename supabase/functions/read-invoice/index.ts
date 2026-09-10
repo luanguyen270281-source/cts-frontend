@@ -33,6 +33,115 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// ───────── Dịch text (translate_en / translate_address_en): chuỗi free trước, Claude sau ─────────
+// Lý do: 2 mode này tốn AI nhiều nhất (translate_en tự bắn khi blur ô mỗi dòng hàng). Câu mô tả
+// "đơn giản" (có mã hàng/model rõ ràng để định danh sản phẩm) thì model free rẻ/miễn phí đã đủ
+// chính xác — đã kiểm chứng bằng toàn bộ dữ liệu Sales Contract thật. Câu "phức tạp" (không có mã,
+// hoặc nhiều mã cùng lúc dễ bị gộp sai) vẫn đi thẳng Claude như cũ để đảm bảo chất lượng.
+
+async function callGroqModel(model: string, prompt: string, apiKey: string): Promise<string> {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, max_tokens: 300, messages: [{ role: 'user', content: prompt }] }),
+  });
+  if (!res.ok) throw new Error(`Groq ${model} HTTP ${res.status}`);
+  const data = await res.json();
+  const text = (data.choices?.[0]?.message?.content ?? '').trim().replace(/^"|"$/g, '');
+  if (!text) throw new Error(`Groq ${model} trả về rỗng`);
+  return text;
+}
+
+async function callGeminiModel(model: string, prompt: string, apiKey: string, withThinkingConfig: boolean): Promise<string> {
+  const generationConfig: Record<string, unknown> = { maxOutputTokens: 1024 };
+  if (withThinkingConfig) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig }),
+  });
+  if (!res.ok) throw new Error(`Gemini ${model} HTTP ${res.status}`);
+  const data = await res.json();
+  const text = (data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '')
+    .trim().replace(/^"|"$/g, '');
+  if (!text) throw new Error(`Gemini ${model} trả về rỗng`);
+  return text;
+}
+
+async function callAnthropicText(prompt: string, apiKey: string): Promise<string> {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 300, messages: [{ role: 'user', content: prompt }] }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error('Lỗi gọi AI (' + res.status + '): ' + errText.slice(0, 300));
+  }
+  const data = await res.json();
+  return (data.content?.[0]?.text || '').trim().replace(/^"|"$/g, '');
+}
+
+// Phân loại độ khó mô tả tiếng Việt — thuần regex, KHÔNG gọi AI (miễn phí, tức thì).
+// "Đơn giản" = tìm được đúng 1-2 mã hàng/model/ký hiệu/mã vải rõ ràng để định danh sản phẩm.
+// "Phức tạp" = không có mã nào (bắt buộc tự mô tả đúng đặc điểm kỹ thuật), hoặc có từ 3 mã trở lên
+// cùng lúc (rủi ro model free gộp nhầm mã, vd biến 8 mã rời rạc thành 1 dải mã liên tục sai).
+function classifyComplexity(text: string): 'simple' | 'complex' {
+  const markerRe = /(mã\s*hàng|mã\s*vải|mã\s*số|model|ký\s*hiệu|kí\s*hiệu|sku|code|mã)\s*:?\s*/i;
+  const m = markerRe.exec(text);
+  if (!m) return 'complex';
+
+  let rest = text.slice(m.index + m[0].length);
+  // Bỏ ký hiệu dung sai "+/-10%" trước — dấu "/" trong đó dễ bị hiểu nhầm là dấu tách nhiều mã
+  // (xuất hiện ở hầu hết mô tả thật, vd "(+/-10%)").
+  rest = rest.replace(/\+\/?-\s*\d+([.,]\d+)?%/g, '');
+  const stopRe = /,?\s*(NSX|nsx|mới\s*100%|size|chất\s*liệu|màu|KT\s*:|dung\s*tích|kích\s*thước|dạng)/i;
+  const stopMatch = stopRe.exec(rest);
+  const codeSegment = stopMatch ? rest.slice(0, stopMatch.index) : rest;
+
+  // Mã hàng thật thường ngắn, không dấu tiếng Việt — lọc bỏ token trông như văn xuôi để tránh nhận
+  // nhầm câu kiểu "không có mã hàng nào cả" thành có mã.
+  const looksLikeCode = (s: string) =>
+    s.length > 0 && s.length <= 25 &&
+    !/[àáảãạăằắẳẵặâầấẩẫậđèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵ]/i.test(s);
+
+  const codes = codeSegment.split(',').map((s) => s.trim()).filter(looksLikeCode);
+  if (codes.length === 0) return 'complex';
+  if (codes.length >= 3) return 'complex';
+  return 'simple';
+}
+
+// Chuỗi fallback: câu "đơn giản" thử lần lượt các model free trước (dừng ngay khi có 1 cái chạy được),
+// hết quota/lỗi cả 3 mới rơi xuống Claude. Câu "phức tạp" đi thẳng Claude, bỏ qua tầng free.
+// forceSimple: bỏ qua bước phân loại theo mã hàng — dùng cho translate_address_en, vì quy tắc "có mã
+// hàng" chỉ có ý nghĩa với mô tả sản phẩm, địa chỉ không bao giờ có mã nên sẽ luôn bị coi nhầm là
+// "phức tạp" nếu áp y nguyên. Dịch địa chỉ vốn là việc cơ học (sắp lại thứ tự), model free xử lý tốt.
+async function translateWithFallback(
+  prompt: string,
+  sourceText: string,
+  keys: { groq?: string; gemini?: string; anthropic: string },
+  forceSimple = false,
+): Promise<string> {
+  const complexity = forceSimple ? 'simple' : classifyComplexity(sourceText);
+
+  if (complexity === 'simple') {
+    const attempts: Array<[string, () => Promise<string>]> = [];
+    if (keys.groq) attempts.push(['Groq qwen3.8-27b', () => callGroqModel('qwen/qwen3.8-27b', prompt, keys.groq!)]);
+    if (keys.gemini) attempts.push(['Gemini 3.5 Flash-Lite', () => callGeminiModel('gemini-3.5-flash-lite', prompt, keys.gemini!, false)]);
+    if (keys.gemini) attempts.push(['Gemini 3.8 Flash', () => callGeminiModel('gemini-3.8-flash', prompt, keys.gemini!, true)]);
+    for (const [name, attempt] of attempts) {
+      try {
+        return await attempt();
+      } catch (err) {
+        console.error(`[translateWithFallback] ${name} lỗi, thử tầng tiếp theo:`, (err as Error).message);
+      }
+    }
+  }
+
+  // Mô tả phức tạp, hoặc mọi tầng free đều thất bại → Claude (như hành vi cũ).
+  return await callAnthropicText(prompt, keys.anthropic);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
 
@@ -89,22 +198,16 @@ Deno.serve(async (req) => {
         '10. "Bình giữ nhiệt, không dùng điện, chất liệu lõi và thân bằng inox, có lớp cách nhiệt chân không ở giữa, nắp bằng nhựa PP, dung tích 2500ml, nhãn hiệu: DKADI, mới 100%" → "Vacuum bottle 2500ml"\n\n' +
         'Chỉ trả về đúng 1 dòng tiếng Anh, không thêm giải thích, không thêm dấu ngoặc kép.\n\n' +
         'Mô tả tiếng Việt: ' + text;
-      const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 300,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-      if (!aiRes.ok) {
-        const errText = await aiRes.text();
-        return json({ error: 'Lỗi gọi AI (' + aiRes.status + '): ' + errText.slice(0, 300) }, 502);
+      try {
+        const en = await translateWithFallback(prompt, text, {
+          groq: Deno.env.get('GROQ_API_KEY') || undefined,
+          gemini: Deno.env.get('GEMINI_API_KEY') || undefined,
+          anthropic: apiKey,
+        });
+        return json({ en });
+      } catch (err) {
+        return json({ error: (err as Error).message || 'Lỗi gọi AI.' }, 502);
       }
-      const aiData = await aiRes.json();
-      const en = (aiData.content?.[0]?.text || '').trim().replace(/^"|"$/g, '');
-      return json({ en });
     }
 
     // 3a-2. Chế độ dịch địa chỉ tiếng Việt → tiếng Anh (Sales Contract) — giữ format địa chỉ chuẩn quốc tế.
@@ -117,22 +220,16 @@ Deno.serve(async (req) => {
         '- "Số 18, Ngõ 117, Phố Thái Hà, Phường Đống Đa, Thành phố Hà Nội, Việt Nam" → "No. 18, Lane 117, Thai Ha Street, Dong Da Ward, Hanoi City, Vietnam"\n' +
         'Chỉ trả về đúng 1 dòng địa chỉ tiếng Anh, không thêm giải thích, không thêm dấu ngoặc kép.\n\n' +
         'Địa chỉ tiếng Việt: ' + text;
-      const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 300,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-      if (!aiRes.ok) {
-        const errText = await aiRes.text();
-        return json({ error: 'Lỗi gọi AI (' + aiRes.status + '): ' + errText.slice(0, 300) }, 502);
+      try {
+        const en = await translateWithFallback(prompt, text, {
+          groq: Deno.env.get('GROQ_API_KEY') || undefined,
+          gemini: Deno.env.get('GEMINI_API_KEY') || undefined,
+          anthropic: apiKey,
+        }, true); // forceSimple: địa chỉ luôn thử chuỗi free trước, không áp quy tắc "có mã hàng"
+        return json({ en });
+      } catch (err) {
+        return json({ error: (err as Error).message || 'Lỗi gọi AI.' }, 502);
       }
-      const aiData = await aiRes.json();
-      const en = (aiData.content?.[0]?.text || '').trim().replace(/^"|"$/g, '');
-      return json({ en });
     }
 
     // 3b. Chế độ đọc hóa đơn/đơn hàng từ ảnh hoặc PDF (như cũ).
