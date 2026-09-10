@@ -196,6 +196,24 @@ export const api = {
     if (error) throw new Error(error.message);
   },
 
+  // "Kế toán nhận Hợp đồng" — chỉ dùng cho 3 màn HĐ Nguyên Tắc. Cột accounting_received nằm ở
+  // cấp cột thật trên bảng contracts (không phải trong jsonb "data"), nên list_contracts_paged
+  // (RPC) không trả về — phải lấy riêng bằng 1 lệnh gọi nhẹ theo id, giống hệt cách InvoiceGoodsPage
+  // lấy 7 cột theo dõi hồ sơ qua getInvoiceGoodsExtraMap.
+  async getContractsAccountingMap(ids) {
+    if (!ids || ids.length === 0) return {};
+    const { data, error } = await supabase.from('contracts').select('id, accounting_received').in('id', ids);
+    if (error) throw new Error(error.message);
+    const map = {};
+    (data || []).forEach(r => { map[r.id] = !!r.accounting_received; });
+    return map;
+  },
+
+  async updateContractAccountingReceived(dbId, value) {
+    const { error } = await supabase.from('contracts').update({ accounting_received: value }).eq('id', dbId);
+    if (error) throw new Error(error.message);
+  },
+
   // Giao hợp đồng cho sale khác (chỉ admin) — chỉ cập nhật ma_sale, không đổi người tạo
   async assignContractSale(dbId, newMaSale) {
     const { data, error } = await supabase

@@ -10,6 +10,7 @@ import { Pagination } from '../components/Pagination';
 
 const FEE_TYPES = ['DDH', 'BBBG', 'DDH_VC', 'BBBG_VC', 'DDH_UT', 'BBBG_UT'];
 const INVOICE_NO_TYPES = ['DDH', 'BBBG']; // chỉ loại Mua bán mới có tính năng chọn số hóa đơn có sẵn
+const HDNT_TYPES = ['HDNT', 'HDNT_VC', 'HDNT_UT']; // chỉ 3 loại HĐ Nguyên Tắc mới có cột "Kế toán nhận Hợp đồng"
 const PAGE_SIZE = 30;
 
 // Tìm kiếm/lọc/phân trang ngay ở server qua RPC list_contracts_paged — không còn tải hết hợp đồng
@@ -19,6 +20,7 @@ const PAGE_SIZE = 30;
 export const ContractListPage = ({ type, refreshVersion, customers, sellers, saleMap = {}, saleProfiles = [], setPage, setViewContract, onDelete, onDeleteMany, onAssign, onEdit }) => {
   const [assigningId, setAssigningId] = useState(null); // contractId đang được giao
   const showInvoiceNo = INVOICE_NO_TYPES.includes(type);
+  const showAccountingReceived = HDNT_TYPES.includes(type);
   const [search, setSearch] = useState('');
   const [sellerFilter, setSellerFilter] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -79,13 +81,24 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
       setRows(newRows.map(mapRow));
       setTotalCount(tc);
       setPageNum(pageToLoad);
+      // "Kế toán nhận Hợp đồng" nằm ở cột thật trên bảng contracts, RPC không trả về — lấy riêng
+      // cho các dòng vừa tải, chỉ khi đang ở 1 trong 3 màn HĐ Nguyên Tắc.
+      if (showAccountingReceived) {
+        const ids = newRows.map(r => r.id).filter(Boolean);
+        if (ids.length > 0) {
+          const accMap = await api.getContractsAccountingMap(ids).catch(() => ({}));
+          if (myRequestId === requestIdRef.current) {
+            setRows(prev => prev.map(r => ({ ...r, accounting_received: !!accMap[r._dbId] })));
+          }
+        }
+      }
     } catch (e) {
       console.error('Không tải được danh sách hợp đồng:', e.message);
     } finally {
       if (myRequestId === requestIdRef.current) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, search, sellerFilter, fromDate, toDate]);
+  }, [type, search, sellerFilter, fromDate, toDate, showAccountingReceived]);
 
   // Đổi loại hợp đồng (chuyển trang HĐNT/ĐĐH/BBBG...) → xóa ngay dữ liệu cũ, tránh thoáng hiện nhầm
   // dữ liệu loại cũ dưới tiêu đề loại mới trong lúc chờ tải xong loại mới.
@@ -115,6 +128,18 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  };
+
+  // Tích "Kế toán nhận Hợp đồng" — cập nhật ngay trên giao diện rồi lưu xuống Supabase, lỗi thì hoàn lại.
+  const toggleAccountingReceived = async (dbId, current) => {
+    const next = !current;
+    setRows(prev => prev.map(r => r._dbId === dbId ? { ...r, accounting_received: next } : r));
+    try {
+      await api.updateContractAccountingReceived(dbId, next);
+    } catch (e) {
+      setRows(prev => prev.map(r => r._dbId === dbId ? { ...r, accounting_received: current } : r));
+      alert('Không lưu được: ' + e.message);
+    }
   };
 
   // Chỉ áp dụng "chọn tất cả" cho các dòng đang tải sẵn (trang hiện tại), tránh chọn nhầm hàng nghìn
@@ -282,7 +307,10 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
               {showTotal && <th className="text-left px-5 py-3">Tổng tiền</th>}
               <th className="text-left px-5 py-3">Sale</th>
               <th className="text-left px-5 py-3">Phòng ban</th>
-              <th className="text-left px-5 py-3">Trạng thái</th>
+              <th className="text-left px-5 py-3 whitespace-nowrap">Trạng thái</th>
+              {showAccountingReceived && (
+                <th className="text-center px-3 py-3 w-28">Kế toán nhận<br />Hợp đồng</th>
+              )}
               <th className="px-5 py-3"></th>
             </tr></thead>
             <tbody>
@@ -323,7 +351,14 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
                       )}
                     </td>
                     <td className="px-5 py-3 text-gray-500 text-xs">{(saleMap[c._createdBy] || saleMap[c._maSale])?.deptName || '–'}</td>
-                    <td className="px-5 py-3"><Badge color={c.status === 'Hoàn thành' ? 'green' : 'blue'}>{c.status}</Badge></td>
+                    <td className="px-5 py-3 whitespace-nowrap"><Badge color={c.status === 'Hoàn thành' ? 'green' : 'blue'}>{c.status}</Badge></td>
+                    {showAccountingReceived && (
+                      <td className="px-5 py-3 text-center">
+                        <input type="checkbox" checked={!!c.accounting_received}
+                          onChange={() => toggleAccountingReceived(c._dbId, !!c.accounting_received)}
+                          className="cursor-pointer w-4 h-4 accent-green-600" title="Tích khi Kế toán đã nhận hợp đồng" />
+                      </td>
+                    )}
                     <td className="px-5 py-3 whitespace-nowrap text-right">
                       <button onClick={() => setViewContract(c)} className="text-blue-600 hover:text-blue-800 font-medium text-sm mr-3">Xem →</button>
                       <button onClick={() => onEdit(c)} className="text-yellow-600 hover:text-yellow-800 font-medium text-sm mr-3">Sửa</button>
