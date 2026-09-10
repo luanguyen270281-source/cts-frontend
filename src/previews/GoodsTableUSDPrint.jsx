@@ -1,5 +1,8 @@
 // File: src/previews/GoodsTableUSDPrint.jsx
-import { calcUSDTotal, fmtNum } from '../helpers';
+import { calcUSDTotal, fmtNum, formatThousands } from '../helpers';
+
+// Đơn giá USD có thể có số thập phân (vd 0.23) — fmtNum làm tròn về số nguyên nên không dùng được ở đây.
+const fmtDonGia = (n) => formatThousands(n, 4);
 
 export const GoodsTableUSDPrint = ({ goods, exchangeRate }) => {
   const totalUsd = calcUSDTotal(goods);
@@ -27,7 +30,7 @@ export const GoodsTableUSDPrint = ({ goods, exchangeRate }) => {
               <td className="border border-gray-400 px-2 py-1">{g.tenHang}</td>
               <td className="border border-gray-400 px-2 py-1 text-center">{g.dvt}</td>
               <td className="border border-gray-400 px-2 py-1 text-right">{fmtNum(g.soLuong)}</td>
-              <td className="border border-gray-400 px-2 py-1 text-right">{fmtNum(g.donGia)}</td>
+              <td className="border border-gray-400 px-2 py-1 text-right">{fmtDonGia(g.donGia)}</td>
               <td className="border border-gray-400 px-2 py-1 text-right">{fmtNum(g.thanhTien)}</td>
             </tr>
           ))}
