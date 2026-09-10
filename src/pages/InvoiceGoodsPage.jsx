@@ -55,6 +55,9 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
   const [saleFilter, setSaleFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  // '' = tất cả, 'yes' = Kế toán đã nhận, 'no' = Kế toán chưa nhận
+  const [accountingFilter, setAccountingFilter] = useState('');
+  const accountingReceivedParam = accountingFilter === 'yes' ? true : accountingFilter === 'no' ? false : null;
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null); // { done, total } | null
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -172,6 +175,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
     try {
       const { rows: newRows, totalCount: tc } = await api.listInvoiceGoodsPaged({
         search, seller: sellerFilter, sale: saleFilter, dateFrom, dateTo,
+        accountingReceived: accountingReceivedParam,
         limit: PAGE_SIZE, offset: (pageToLoad - 1) * PAGE_SIZE,
       });
       if (myRequestId !== requestIdRef.current) return; // đã có request mới hơn chạy sau, bỏ kết quả này
@@ -200,14 +204,14 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
     } finally {
       if (myRequestId === requestIdRef.current) setLoading(false);
     }
-  }, [search, sellerFilter, saleFilter, dateFrom, dateTo]);
+  }, [search, sellerFilter, saleFilter, dateFrom, dateTo, accountingReceivedParam]);
 
   // Gõ tìm kiếm: debounce 300ms để tránh gọi API liên tục theo từng ký tự; đổi bộ lọc luôn quay về trang 1
   useEffect(() => {
     const t = setTimeout(() => { loadPage(1); setSelectedIds(new Set()); }, search ? 300 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, sellerFilter, saleFilter, dateFrom, dateTo]);
+  }, [search, sellerFilter, saleFilter, dateFrom, dateTo, accountingReceivedParam]);
 
   const handlePickFile = () => fileRef.current?.click();
 
@@ -224,6 +228,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
       while (true) {
         const { rows } = await api.listInvoiceGoodsPaged({
           search, seller: sellerFilter, sale: saleFilter, dateFrom, dateTo,
+          accountingReceived: accountingReceivedParam,
           limit: CHUNK, offset,
         });
         all = all.concat(rows);
@@ -359,8 +364,8 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
     }
   };
 
-  const clearFilters = () => { setSearch(''); setSellerFilter(''); setSaleFilter(''); setDateFrom(''); setDateTo(''); };
-  const hasActiveFilters = search || sellerFilter || saleFilter || dateFrom || dateTo;
+  const clearFilters = () => { setSearch(''); setSellerFilter(''); setSaleFilter(''); setDateFrom(''); setDateTo(''); setAccountingFilter(''); };
+  const hasActiveFilters = search || sellerFilter || saleFilter || dateFrom || dateTo || accountingFilter;
 
   const [noteDrafts, setNoteDrafts] = useState({}); // { [id]: text đang gõ } — chỉ admin sửa được
   const saveNote = async (id, note) => {
@@ -540,6 +545,16 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
           <label className="block text-xs text-gray-500 mb-1">Đến ngày</label>
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
             className={`border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${dateTo ? '' : 'wf-date-empty'}`} />
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Kế toán nhận</label>
+          <select value={accountingFilter} onChange={(e) => setAccountingFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+            <option value="">Tất cả</option>
+            <option value="yes">Đã nhận</option>
+            <option value="no">Chưa nhận</option>
+          </select>
         </div>
 
         {hasActiveFilters && (

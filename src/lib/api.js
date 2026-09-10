@@ -288,13 +288,14 @@ export const api = {
   // --- Invoice Goods: hàng hóa theo số hóa đơn (nhập từ Excel), dùng để tự điền khi tạo ĐĐH/BBBG ---
   // Dùng RPC phân trang + lọc server-side thay vì tải hết bảng (đã lên tới hàng chục nghìn dòng,
   // select('*') trần khiến supabase-js tự động lặp request 1000 dòng/lần để lấy hết → rất chậm).
-  async listInvoiceGoodsPaged({ search = '', seller = '', sale = '', dateFrom = '', dateTo = '', limit = 50, offset = 0 } = {}) {
+  async listInvoiceGoodsPaged({ search = '', seller = '', sale = '', dateFrom = '', dateTo = '', accountingReceived = null, limit = 50, offset = 0 } = {}) {
     const { data, error } = await supabase.rpc('list_invoice_goods_paged', {
       p_search: search || null,
       p_seller: seller || null,
       p_sale: sale || null,
       p_date_from: dateFrom || null,
       p_date_to: dateTo || null,
+      p_accounting_received: accountingReceived,
       p_limit: limit,
       p_offset: offset,
     });
