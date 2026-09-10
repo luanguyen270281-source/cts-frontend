@@ -113,10 +113,7 @@ function classifyComplexity(text: string): 'simple' | 'complex' {
 
 // Chuỗi fallback: câu "đơn giản" thử lần lượt các model free trước (dừng ngay khi có 1 cái chạy được),
 // hết quota/lỗi cả 3 mới rơi xuống Claude. Câu "phức tạp" đi thẳng Claude, bỏ qua tầng free.
-// forceSimple: bỏ qua bước phân loại theo mã hàng — dùng cho translate_address_en (địa chỉ không có
-// "mã hàng" nên quy tắc phân loại không áp dụng được). LƯU Ý: test thật cho thấy model free có thể đọc
-// sai từ viết tắt/tên lạ trong địa chỉ (vd "Binh đoàn" -> "Binh Tuan", "louis" -> "Lounge") — đang bật
-// lại tạm thời theo yêu cầu (ưu tiên không phụ thuộc Claude khi hết credit), chấp nhận rủi ro này.
+// forceSimple: bỏ qua bước phân loại theo mã hàng — dùng cho translate_address_en vì địa chỉ không có mã hàng.
 async function translateWithFallback(
   prompt: string,
   sourceText: string,
@@ -221,9 +218,6 @@ Deno.serve(async (req) => {
         '- "Số 18, Ngõ 117, Phố Thái Hà, Phường Đống Đa, Thành phố Hà Nội, Việt Nam" → "No. 18, Lane 117, Thai Ha Street, Dong Da Ward, Hanoi City, Vietnam"\n' +
         'Chỉ trả về đúng 1 dòng địa chỉ tiếng Anh, không thêm giải thích, không thêm dấu ngoặc kép.\n\n' +
         'Địa chỉ tiếng Việt: ' + text;
-      // Bật lại chuỗi free cho địa chỉ (forceSimple) — ưu tiên không phụ thuộc hoàn toàn vào credit
-      // Claude, dù test thật trước đó cho thấy free có thể đọc sai từ viết tắt/tên lạ (xem ghi chú ở
-      // hàm translateWithFallback). Người dùng có thể sửa tay ô Địa chỉ (EN) nếu kết quả chưa đúng.
       try {
         const en = await translateWithFallback(prompt, text, {
           groq: Deno.env.get('GROQ_API_KEY') || undefined,
