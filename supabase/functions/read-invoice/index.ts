@@ -113,16 +113,14 @@ function classifyComplexity(text: string): 'simple' | 'complex' {
 
 // Chuỗi fallback: câu "đơn giản" thử lần lượt các model free trước (dừng ngay khi có 1 cái chạy được),
 // hết quota/lỗi cả 3 mới rơi xuống Claude. Câu "phức tạp" đi thẳng Claude, bỏ qua tầng free.
-// forceSimple: bỏ qua bước phân loại theo mã hàng — dùng cho translate_address_en, vì quy tắc "có mã
-// hàng" chỉ có ý nghĩa với mô tả sản phẩm, địa chỉ không bao giờ có mã nên sẽ luôn bị coi nhầm là
-// "phức tạp" nếu áp y nguyên. Dịch địa chỉ vốn là việc cơ học (sắp lại thứ tự), model free xử lý tốt.
+// Chỉ dùng cho translate_en (dịch tên hàng) — translate_address_en gọi callAnthropicText trực tiếp,
+// không qua đây (xem ghi chú ở chỗ gọi: model free đọc sai từ viết tắt/tên lạ trong địa chỉ thật).
 async function translateWithFallback(
   prompt: string,
   sourceText: string,
   keys: { groq?: string; gemini?: string; anthropic: string },
-  forceSimple = false,
 ): Promise<string> {
-  const complexity = forceSimple ? 'simple' : classifyComplexity(sourceText);
+  const complexity = classifyComplexity(sourceText);
 
   if (complexity === 'simple') {
     const attempts: Array<[string, () => Promise<string>]> = [];
@@ -220,12 +218,12 @@ Deno.serve(async (req) => {
         '- "Số 18, Ngõ 117, Phố Thái Hà, Phường Đống Đa, Thành phố Hà Nội, Việt Nam" → "No. 18, Lane 117, Thai Ha Street, Dong Da Ward, Hanoi City, Vietnam"\n' +
         'Chỉ trả về đúng 1 dòng địa chỉ tiếng Anh, không thêm giải thích, không thêm dấu ngoặc kép.\n\n' +
         'Địa chỉ tiếng Việt: ' + text;
+      // Luôn dùng Claude cho địa chỉ — KHÔNG qua chuỗi free. Đã test thật (4 ca) và phát hiện model free
+      // đọc sai từ viết tắt/tên lạ trong địa chỉ (vd "Binh đoàn" -> "Binh Tuan", "louis" -> "Lounge"),
+      // rủi ro sai địa chỉ trên hợp đồng thật. Vì mode này ít được gọi (chỉ bấm tay, không tự động như
+      // translate_en) nên khoản tiết kiệm chi phí không đáng để đánh đổi độ chính xác.
       try {
-        const en = await translateWithFallback(prompt, text, {
-          groq: Deno.env.get('GROQ_API_KEY') || undefined,
-          gemini: Deno.env.get('GEMINI_API_KEY') || undefined,
-          anthropic: apiKey,
-        }, true); // forceSimple: địa chỉ luôn thử chuỗi free trước, không áp quy tắc "có mã hàng"
+        const en = await callAnthropicText(prompt, apiKey);
         return json({ en });
       } catch (err) {
         return json({ error: (err as Error).message || 'Lỗi gọi AI.' }, 502);
