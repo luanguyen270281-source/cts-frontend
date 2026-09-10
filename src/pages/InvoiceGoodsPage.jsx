@@ -27,7 +27,6 @@ const COLS = [
   { key: 'sale',     width: 150, min: 80,  resizable: true  },
   { key: 'count',    width: 130, min: 60,  resizable: true  },
   { key: 'total',    width: 130, min: 90,  resizable: true  },
-  { key: 'dossier',  width: 180, min: 90,  resizable: true  },
   { key: 'note',     width: 200, min: 120, resizable: true  },
   // 7 cột theo dõi hồ sơ SALE GỬI → NHÂN SỰ GỬI → KẾ TOÁN NHẬN — để cuối bảng, trước cột Xóa.
   // Độ rộng các cột "Ngày ..." và "Hạn (số ngày)" đủ rộng để tiêu đề nằm gọn 1 dòng, không
@@ -39,6 +38,7 @@ const COLS = [
   { key: 'accounting_received',      width: 110, min: 90,  resizable: true },
   { key: 'accounting_received_date', width: 190, min: 110, resizable: true },
   { key: 'deadline_days',            width: 130, min: 90,  resizable: true },
+  { key: 'invoice_note', width: 200, min: 120, resizable: true },
   { key: 'action',   width: 70,  min: 60,  resizable: false },
 ];
 // Đổi tên key (thêm .v2) khi đổi độ rộng mặc định trong COLS — nếu giữ nguyên tên cũ, độ rộng
@@ -187,16 +187,13 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
       setRows(newRows);
       setTotalCount(tc);
       setPage(pageToLoad);
-      // Lấy riêng "Hoàn thành hồ sơ" + 7 cột theo dõi hồ sơ cho các dòng vừa tải (không phụ thuộc
-      // hàm RPC). Nếu cột chưa tồn tại trên DB thì bỏ qua, không làm hỏng danh sách.
+      // Lấy riêng 7 cột theo dõi hồ sơ cho các dòng vừa tải (không phụ thuộc hàm RPC). Nếu cột
+      // chưa tồn tại trên DB thì bỏ qua, không làm hỏng danh sách.
       const ids = newRows.map(r => r.id).filter(Boolean);
       if (ids.length > 0) {
         const extraMap = await api.getInvoiceGoodsExtraMap(ids).catch(() => ({}));
         if (myRequestId === requestIdRef.current) {
-          setRows(prev => prev.map(r => {
-            const extra = extraMap[r.id] || {};
-            return { ...r, ...extra, dossier_completed: !!extra.dossier_completed };
-          }));
+          setRows(prev => prev.map(r => ({ ...r, ...(extraMap[r.id] || {}) })));
         }
       }
     } catch (e) {
@@ -216,8 +213,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
   const handlePickFile = () => fileRef.current?.click();
 
   const [exporting, setExporting] = useState(false);
-  // Xuất Excel danh sách hóa đơn theo đúng bộ lọc đang xem, kèm cột "Hoàn thành hồ sơ"
-  // để chị lọc ra các hóa đơn CHƯA hoàn thành mà theo dõi/đôn đốc.
+  // Xuất Excel danh sách hóa đơn theo đúng bộ lọc đang xem, kèm 7 cột theo dõi hồ sơ.
   const handleExportExcel = async () => {
     setExporting(true);
     try {
@@ -236,8 +232,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
         offset += CHUNK;
         if (offset > 100000) break; // chặn an toàn
       }
-      // Lấy trạng thái hoàn thành + 7 cột theo dõi hồ sơ cho tất cả dòng, 1 lệnh gọi/lô (không
-      // tách riêng 2 map như trước — cùng bảng, cùng danh sách id, gộp lại đỡ tốn round-trip).
+      // Lấy 7 cột theo dõi hồ sơ cho tất cả dòng, 1 lệnh gọi/lô.
       let extraMap = {};
       const ids = all.map(r => r.id).filter(Boolean);
       for (let i = 0; i < ids.length; i += 500) {
@@ -258,8 +253,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
           'Sale': r.sale_name || '',
           'Số mặt hàng': Array.isArray(r.goods) ? r.goods.length : (r.goods ? 1 : 0),
           'Tổng tiền': Math.round(Number(r.total) || 0),
-          'Hoàn thành hồ sơ': w.dossier_completed ? 'Đã hoàn thành' : 'CHƯA hoàn thành',
-          'Ghi chú': r.note || '',
+          'Tình trạng hóa đơn': r.note || '',
           'Sale gửi': w.sale_sent ? 'Đã gửi' : 'Chưa gửi',
           'Ngày Sale gửi': w.sale_sent_date || '',
           'Nhân sự gửi': w.hr_sent ? 'Đã gửi' : 'Chưa gửi',
@@ -267,6 +261,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
           'Kế toán nhận': w.accounting_received ? 'Đã nhận' : 'Chưa nhận',
           'Ngày Kế toán nhận': w.accounting_received_date || '',
           'Hạn (số ngày)': w.deadline_days ?? '',
+          'Ghi chú hóa đơn': w.invoice_note || '',
         };
       });
 
@@ -276,6 +271,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
         { wch: 30 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 18 },
         { wch: 24 },
         { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 12 },
+        { wch: 24 },
       ];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Hoa don');
@@ -378,21 +374,19 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
     }
   };
 
-  // Tích "Hoàn thành hồ sơ" — chỉ admin. Cập nhật ngay trên giao diện rồi lưu xuống Supabase.
-  const toggleCompleted = async (id, current) => {
-    const next = !current;
-    setRows(prev => prev.map(r => r.id === id ? { ...r, dossier_completed: next } : r));
+  const [invoiceNoteDrafts, setInvoiceNoteDrafts] = useState({}); // { [id]: text đang gõ } — chỉ admin sửa được
+  const saveInvoiceNote = async (id, invoice_note) => {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, invoice_note } : r)); // cập nhật ngay trên giao diện
+    setInvoiceNoteDrafts(prev => { const next = { ...prev }; delete next[id]; return next; });
     try {
-      await api.updateInvoiceGoodsCompleted(id, next);
+      await api.updateInvoiceGoodsInvoiceNote(id, invoice_note || null);
     } catch (e) {
-      // Lỗi thì hoàn lại trạng thái cũ để không hiển thị sai
-      setRows(prev => prev.map(r => r.id === id ? { ...r, dossier_completed: current } : r));
-      alert('Không lưu được trạng thái hoàn thành: ' + e.message);
+      alert('Không lưu được ghi chú hóa đơn: ' + e.message);
     }
   };
 
   // Tích/chọn ngày/gõ số cho 7 cột theo dõi hồ sơ SALE GỬI / NHÂN SỰ GỬI / KẾ TOÁN NHẬN — chỉ admin.
-  // Cập nhật ngay trên giao diện rồi lưu xuống Supabase, giống hệt "Hoàn thành hồ sơ".
+  // Cập nhật ngay trên giao diện rồi lưu xuống Supabase.
   const [hanDrafts, setHanDrafts] = useState({}); // { [id]: text đang gõ cho "Hạn (số ngày)" }
 
   // Trạng thái "đang lưu"/"vừa lưu xong" theo từng ô (id + field) — để hiện chấm xoay + khóa tạm
@@ -622,27 +616,27 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
             <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase">
               {/* Mỗi ô tiêu đề (trừ cột không cho kéo) có 1 "tay kéo" ở mép phải:
                   rê chuột để đổi độ rộng, nhấp đúp để trả về mặc định. */}
-              <ResizableTh col="sel"      className="px-4 py-3"                   colWidths={colWidths} onResize={startResize} onReset={resetColWidth} sticky left={frozenLeft.sel}>
+              <ResizableTh col="sel"      className="text-center px-4 py-3"        colWidths={colWidths} onResize={startResize} onReset={resetColWidth} sticky left={frozenLeft.sel}>
                 <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} className="cursor-pointer" />
               </ResizableTh>
-              <ResizableTh col="stt"      className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth} sticky left={frozenLeft.stt}>STT</ResizableTh>
-              <ResizableTh col="invoice"  className="text-left px-5 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth} sticky left={frozenLeft.invoice} dividerRight={needsHScroll}>Số hóa đơn</ResizableTh>
-              <ResizableTh col="date"     className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày</ResizableTh>
-              <ResizableTh col="customer" className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Khách hàng</ResizableTh>
-              <ResizableTh col="seller"   className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Công ty bán</ResizableTh>
-              <ResizableTh col="sale"     className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Sale</ResizableTh>
-              <ResizableTh col="count"    className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Số mặt hàng</ResizableTh>
-              <ResizableTh col="total"    className="text-right px-5 py-3"         colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Tổng tiền</ResizableTh>
-              <ResizableTh col="dossier"  className="text-center px-5 py-3"        colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Hoàn thành hồ sơ</ResizableTh>
-              <ResizableTh col="note"     className="text-left px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ghi chú</ResizableTh>
+              <ResizableTh col="stt"      className="text-center px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth} sticky left={frozenLeft.stt}>STT</ResizableTh>
+              <ResizableTh col="invoice"  className="text-center px-5 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth} sticky left={frozenLeft.invoice} dividerRight={needsHScroll}>Số hóa đơn</ResizableTh>
+              <ResizableTh col="date"     className="text-center px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày</ResizableTh>
+              <ResizableTh col="customer" className="text-center px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Khách hàng</ResizableTh>
+              <ResizableTh col="seller"   className="text-center px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Công ty bán</ResizableTh>
+              <ResizableTh col="sale"     className="text-center px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Sale</ResizableTh>
+              <ResizableTh col="count"    className="text-center px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Số mặt hàng</ResizableTh>
+              <ResizableTh col="total"    className="text-center px-5 py-3"         colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Tổng tiền</ResizableTh>
+              <ResizableTh col="note"     className="text-center px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Tình trạng hóa đơn</ResizableTh>
               <ResizableTh col="sale_sent"                 className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Sale gửi</ResizableTh>
-              <ResizableTh col="sale_sent_date"            className="text-left px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Sale gửi</ResizableTh>
+              <ResizableTh col="sale_sent_date"            className="text-center px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Sale gửi</ResizableTh>
               <ResizableTh col="hr_sent"                   className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Nhân sự gửi</ResizableTh>
-              <ResizableTh col="hr_sent_date"               className="text-left px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Nhân sự gửi</ResizableTh>
+              <ResizableTh col="hr_sent_date"               className="text-center px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Nhân sự gửi</ResizableTh>
               <ResizableTh col="accounting_received"       className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Kế toán nhận</ResizableTh>
-              <ResizableTh col="accounting_received_date"  className="text-left px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Kế toán nhận</ResizableTh>
+              <ResizableTh col="accounting_received_date"  className="text-center px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Kế toán nhận</ResizableTh>
               <ResizableTh col="deadline_days"              className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Hạn (số ngày)</ResizableTh>
-              <ResizableTh col="action"   className="px-5 py-3"                    colWidths={colWidths} onResize={startResize} onReset={resetColWidth}></ResizableTh>
+              <ResizableTh col="invoice_note" className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ghi chú hóa đơn</ResizableTh>
+              <ResizableTh col="action"   className="text-center px-5 py-3"                    colWidths={colWidths} onResize={startResize} onReset={resetColWidth}></ResizableTh>
             </tr></thead>
             <tbody>
               {rows.map((inv, idx) => {
@@ -682,17 +676,6 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                   <td className="px-5 py-3 text-gray-600 truncate" title={inv.sale_name || ''}>{inv.sale_name || <span className="text-gray-300">—</span>}</td>
                   <td className="px-5 py-3 text-gray-600">{inv.goods?.length || 0}</td>
                   <td className="px-5 py-3 text-right font-medium">{fmtNum(inv.total || 0)}</td>
-                  <td className="px-5 py-3 text-center">
-                    {isAdmin ? (
-                      <input type="checkbox" checked={!!inv.dossier_completed}
-                        onChange={() => toggleCompleted(inv.id, !!inv.dossier_completed)}
-                        className="cursor-pointer w-4 h-4 accent-green-600" title="Tích khi hồ sơ đã hoàn thành" />
-                    ) : (
-                      inv.dossier_completed
-                        ? <span className="text-green-600 font-medium" title="Hồ sơ đã hoàn thành">✓ Đã xong</span>
-                        : <span className="text-gray-300">—</span>
-                    )}
-                  </td>
                   <td className="px-5 py-3 text-gray-600">
                     {isAdmin ? (
                       <input
@@ -717,9 +700,9 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                   </td>
                   <td className="px-3 py-3">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saved'}>
-                      <input type="date" value={inv.sale_sent_date || ''} disabled={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saving'}
-                        onChange={e => saveWorkflowDate(inv.id, 'sale_sent_date', e.target.value, inv.sale_sent_date)}
-                        className={`w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 ${inv.sale_sent_date ? '' : 'wf-date-empty'}`} />
+                      <WorkflowDatePicker value={inv.sale_sent_date} disabled={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saving'}
+                        onChange={v => saveWorkflowDate(inv.id, 'sale_sent_date', v, inv.sale_sent_date)}
+                        onClear={() => saveWorkflowDate(inv.id, 'sale_sent_date', '', inv.sale_sent_date)} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
@@ -731,9 +714,9 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                   </td>
                   <td className="px-3 py-3">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saved'}>
-                      <input type="date" value={inv.hr_sent_date || ''} disabled={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saving'}
-                        onChange={e => saveWorkflowDate(inv.id, 'hr_sent_date', e.target.value, inv.hr_sent_date)}
-                        className={`w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 ${inv.hr_sent_date ? '' : 'wf-date-empty'}`} />
+                      <WorkflowDatePicker value={inv.hr_sent_date} disabled={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saving'}
+                        onChange={v => saveWorkflowDate(inv.id, 'hr_sent_date', v, inv.hr_sent_date)}
+                        onClear={() => saveWorkflowDate(inv.id, 'hr_sent_date', '', inv.hr_sent_date)} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
@@ -745,9 +728,9 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                   </td>
                   <td className="px-3 py-3">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saved'}>
-                      <input type="date" value={inv.accounting_received_date || ''} disabled={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saving'}
-                        onChange={e => saveWorkflowDate(inv.id, 'accounting_received_date', e.target.value, inv.accounting_received_date)}
-                        className={`w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 ${inv.accounting_received_date ? '' : 'wf-date-empty'}`} />
+                      <WorkflowDatePicker value={inv.accounting_received_date} disabled={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saving'}
+                        onChange={v => saveWorkflowDate(inv.id, 'accounting_received_date', v, inv.accounting_received_date)}
+                        onClear={() => saveWorkflowDate(inv.id, 'accounting_received_date', '', inv.accounting_received_date)} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
@@ -758,6 +741,19 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                         className="w-16 border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-200" />
                     </WorkflowCell>
                     {overdue && <div className="text-red-600 text-xs font-semibold mt-0.5" title="Đã trễ hạn">⚠️ Quá hạn</div>}
+                  </td>
+                  <td className="px-3 py-3">
+                    {isAdmin ? (
+                      <input
+                        value={invoiceNoteDrafts[inv.id] ?? inv.invoice_note ?? ''}
+                        onChange={e => setInvoiceNoteDrafts(prev => ({ ...prev, [inv.id]: e.target.value }))}
+                        onBlur={e => { if (e.target.value !== (inv.invoice_note || '')) saveInvoiceNote(inv.id, e.target.value); }}
+                        placeholder="Ghi chú hóa đơn..."
+                        className="w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      />
+                    ) : (
+                      inv.invoice_note || <span className="text-gray-300">—</span>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-right"><button onClick={() => handleDeleteOne(inv.id)} className="text-red-500 hover:text-red-700">Xóa</button></td>
                 </tr>
@@ -778,6 +774,46 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
 // Định nghĩa ở module scope (không lồng trong InvoiceGoodsPage) để giữ nguyên identity component
 // qua mỗi lần render — nếu định nghĩa lồng trong, React sẽ coi đây là component khác mỗi lần cha
 // re-render (VD: mỗi lần gõ ký tự vào ô "Hạn"), unmount/remount input con, mất focus/con trỏ đang gõ.
+// yyyy-mm-dd (giá trị input[type=date]) -> dd/mm/yyyy để hiển thị, không phụ thuộc locale máy.
+function formatVNDate(value) {
+  if (!value) return '';
+  const [y, m, d] = value.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// 1 ô ngày trong 7 cột theo dõi hồ sơ: input[type=date] thật bị ẩn hẳn (sr-only) để trình duyệt
+// không tự vẽ "mm/dd/yyyy" hay highlight ô đang chọn — thay vào đó hiện 1 nút giả (rỗng khi chưa
+// có ngày, "dd/mm/yyyy" khi đã chọn). Bấm nút giả -> showPicker() trên input ẩn để mở lịch chọn.
+function WorkflowDatePicker({ value, disabled, onChange, onClear }) {
+  const inputRef = useRef(null);
+  const openPicker = () => {
+    if (disabled) return;
+    const el = inputRef.current;
+    if (el?.showPicker) { try { el.showPicker(); } catch { /* trình duyệt không hỗ trợ, bỏ qua */ } }
+    else el?.focus();
+  };
+  return (
+    <div className="flex items-center gap-0.5">
+      {/* Input ẩn phải nằm chồng đúng khung nút giả (relative + absolute inset-0) — nếu ẩn kiểu
+          sr-only (kéo ra khỏi luồng, co về 1px) thì trình duyệt lấy nhầm vị trí đó để đặt lịch
+          sổ xuống, khiến lịch lệch/lẹm lên ô ngày thay vì nằm ngay dưới nút. */}
+      <div className="relative flex-1 min-w-0">
+        <button type="button" disabled={disabled} onClick={openPicker}
+          className="w-full text-left border border-transparent hover:border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed">
+          {value ? formatVNDate(value) : <span className="text-gray-300">—</span>}
+        </button>
+        <input ref={inputRef} type="date" value={value || ''} disabled={disabled}
+          onChange={e => onChange(e.target.value)} tabIndex={-1} aria-hidden="true"
+          className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" />
+      </div>
+      {value && (
+        <button type="button" title="Xóa ngày" onClick={onClear}
+          className="text-gray-400 hover:text-red-500 px-1 text-sm leading-none">×</button>
+      )}
+    </div>
+  );
+}
+
 function WorkflowCell({ saving, saved, children }) {
   return (
     <div className={`relative rounded transition-opacity ${saving ? 'opacity-50 pointer-events-none' : ''} ${saved ? 'bg-green-100' : ''}`}>

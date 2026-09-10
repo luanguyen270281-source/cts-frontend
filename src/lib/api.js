@@ -339,6 +339,11 @@ export const api = {
     if (error) throw new Error(error.message);
   },
 
+  async updateInvoiceGoodsInvoiceNote(id, invoice_note) {
+    const { error } = await supabase.from('invoice_goods').update({ invoice_note }).eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
   // Cập nhật 1 cột trong nhóm "theo dõi hồ sơ SALE GỬI / NHÂN SỰ GỬI / KẾ TOÁN NHẬN" — Sale (không
   // chỉ Admin) sửa được, nhưng có policy + trigger riêng trong Supabase chặn non-admin sửa các
   // cột invoice_goods khác (số tiền, hàng hóa, ghi chú...). Whitelist tên cột để tránh nhận field
@@ -349,19 +354,12 @@ export const api = {
     if (error) throw new Error(error.message);
   },
 
-  // Cập nhật trạng thái "Hoàn thành hồ sơ" (chỉ admin) — dùng cột dossier_completed trên bảng invoice_goods
-  async updateInvoiceGoodsCompleted(id, completed) {
-    const { error } = await supabase.from('invoice_goods').update({ dossier_completed: completed }).eq('id', id);
-    if (error) throw new Error(error.message);
-  },
-
-  // Lấy "Hoàn thành hồ sơ" + 7 cột theo dõi hồ sơ cho 1 loạt id, trong 1 lần gọi Supabase duy nhất
-  // (trước đây tách 2 hàm/2 round-trip riêng dù cùng bảng, cùng danh sách id — không cần thiết).
-  // → trả về { [id]: { dossier_completed, sale_sent, sale_sent_date, ... } }
+  // Lấy 7 cột theo dõi hồ sơ + "Ghi chú hóa đơn" cho 1 loạt id, trong 1 lần gọi Supabase duy nhất.
+  // → trả về { [id]: { sale_sent, sale_sent_date, ..., invoice_note } }
   async getInvoiceGoodsExtraMap(ids) {
     if (!ids || ids.length === 0) return {};
     const { data, error } = await supabase.from('invoice_goods')
-      .select(`id, dossier_completed, ${INVOICE_GOODS_WORKFLOW_FIELDS.join(', ')}`).in('id', ids);
+      .select(`id, invoice_note, ${INVOICE_GOODS_WORKFLOW_FIELDS.join(', ')}`).in('id', ids);
     if (error) throw new Error(error.message);
     const map = {};
     (data || []).forEach(r => { const { id, ...rest } = r; map[id] = rest; });
