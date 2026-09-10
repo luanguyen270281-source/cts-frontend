@@ -33,6 +33,7 @@ export const CreateDDHUT = ({ sellers, customers, onSave, setPage, editData, isA
   // null = số hợp đồng tự sinh theo thông tin bên dưới; nếu khác null là người dùng đã tự sửa
   const [idOverride, setIdOverride] = useState(editData?.contractId ?? null);
   const fileRef = useRef();
+  const aiBusyRef = useRef(false); // chặn gọi AI trùng khi dán ảnh 2 lần liên tiếp trong lúc lần trước chưa xong
   const seller = sellers[sellerId] || {};
   const [branchIndex, setBranchIndex] = useState(null); // null = dang dung Ma goc, khong phai nhanh nao
   const rawCustomer = customers[customerId] || {};
@@ -55,7 +56,8 @@ export const CreateDDHUT = ({ sellers, customers, onSave, setPage, editData, isA
 
   // Xử lý chung cho 1 file ảnh/PDF (dùng cho cả Upload và Dán/Paste) — đọc hàng hóa giá USD
   const processFile = async (file) => {
-    if (!file) return;
+    if (!file || aiBusyRef.current) return;
+    aiBusyRef.current = true;
     setAiError(''); setAiMismatch(null); setAiLoading(true);
     try {
       const base64 = await new Promise((res, rej) => {
@@ -78,6 +80,7 @@ export const CreateDDHUT = ({ sellers, customers, onSave, setPage, editData, isA
       setAiError(err.message);
     } finally {
       setAiLoading(false);
+      aiBusyRef.current = false;
     }
   };
 
