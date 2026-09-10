@@ -162,6 +162,7 @@ export const CreateBBBG = ({ sellers, customers, onSave, setPage, editData, isAd
 
   // Chọn nhanh từ hóa đơn đã nhập Excel sẵn — tự điền hàng hóa + Khách hàng + Bên bán (không đổi ảnh đính kèm)
   const applyInvoiceGoods = async (inv) => {
+    setAiError('');
     setGoods(inv.goods || []);
     setSourceInvoiceNo(inv.invoice_no || '');
 

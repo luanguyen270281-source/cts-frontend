@@ -115,6 +115,7 @@ export const CreateDDH = ({ sellers, customers, onSave, setPage, editData, isAdm
 
   // Chọn nhanh từ hóa đơn đã nhập Excel sẵn — tự điền hàng hóa + Khách hàng + Bên bán (không tự đổi Ngày đặt hàng)
   const applyInvoiceGoods = async (inv) => {
+    setAiError(''); setAiMismatch(null);
     setGoods(inv.goods || []);
     setAppliedInvoiceDate(inv.invoice_date || null);
     setSourceInvoiceNo(inv.invoice_no || '');
