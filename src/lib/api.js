@@ -329,8 +329,10 @@ export const api = {
     return { sellers: row.sellers || [], sales: row.sales || [] };
   },
 
-  // Tìm kiếm nhẹ (tối đa ~20 kết quả) dùng cho InvoiceGoodsPicker khi tạo ĐĐH/BBBG
-  async searchInvoiceGoods(query, limit = 20) {
+  // Tìm kiếm nhẹ (tối đa ~50 kết quả) dùng cho InvoiceGoodsPicker khi tạo ĐĐH/BBBG.
+  // 50 thay vì 20 (cũ) — bảng invoice_goods đã hàng chục nghìn dòng, từ khóa chung
+  // chung (VD trùng tên khách hàng) rất dễ khớp hơn 20 hóa đơn và bị cắt mất phần còn lại.
+  async searchInvoiceGoods(query, limit = 50) {
     const { data, error } = await supabase.rpc('search_invoice_goods', { p_query: query || null, p_limit: limit });
     if (error) throw new Error(error.message);
     return data || [];

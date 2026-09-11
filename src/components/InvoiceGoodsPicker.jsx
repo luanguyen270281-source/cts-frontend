@@ -18,6 +18,8 @@ const labelOf = (inv) => {
   return parts.join(' • ');
 };
 
+const SEARCH_LIMIT = 50;
+
 export const InvoiceGoodsPicker = ({ onApply }) => {
   const [selected, setSelected] = useState(null);
   const [open, setOpen] = useState(false);
@@ -44,7 +46,7 @@ export const InvoiceGoodsPicker = ({ onApply }) => {
     setLoading(true);
     const t = setTimeout(async () => {
       try {
-        const rows = await api.searchInvoiceGoods(query.trim());
+        const rows = await api.searchInvoiceGoods(query.trim(), SEARCH_LIMIT);
         if (!cancelled) setResults(rows);
       } catch {
         if (!cancelled) setResults([]);
@@ -92,6 +94,12 @@ export const InvoiceGoodsPicker = ({ onApply }) => {
                 </button>
               ))}
             </div>
+            {/* Kết quả chạm đúng mức giới hạn tìm kiếm — rất có thể còn hóa đơn khác bị cắt, gợi ý gõ thêm cho chính xác hơn */}
+            {!loading && results.length >= SEARCH_LIMIT && (
+              <div className="px-3 py-2 text-xs text-amber-600 bg-amber-50 border-t border-amber-100">
+                Đã hiện {SEARCH_LIMIT} kết quả đầu — có thể còn hóa đơn khác, hãy gõ thêm (VD: đủ số hóa đơn) để lọc chính xác hơn.
+              </div>
+            )}
           </div>
         )}
       </div>
