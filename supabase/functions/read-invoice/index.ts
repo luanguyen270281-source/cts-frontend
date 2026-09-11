@@ -111,8 +111,105 @@ function classifyComplexity(text: string): 'simple' | 'complex' {
   return 'simple';
 }
 
+// ───────── Đọc hóa đơn ảnh/PDF (vat / goods_usd): thử Gemini (free) trước, đối chiếu tổng, Claude sau ─────────
+// Khác với dịch text (chấp nhận rủi ro nhỏ để tiết kiệm), đọc hóa đơn ảnh hưởng trực tiếp số tiền/kế toán
+// nên ưu tiên chất lượng. Đã test thực tế 17 model Gemini trên 7 hóa đơn VAT thật (đối chiếu từng dòng
+// hàng, không chỉ đối chiếu tổng): 7 model trong GEMINI_RELIABLE_MODELS bên dưới đều đúng 100% mọi lần
+// chạy được, còn model "mạnh hơn" (gemini-3.7/3.8-flash, *-pro-*) hầu hết bị lỗi 429 hết quota hoặc
+// timeout — chọn model "mạnh" trên lý thuyết lại kém tin cậy hơn hẳn trên thực tế của free tier.
+// Groq vision model (Llama 4 Scout) không thử — vẫn ở Preview, không khuyến nghị cho số liệu tài chính.
+// CHỈ nhận kết quả khi tổng AI tự cộng từ các dòng hàng khớp với tongCongInHoaDon in sẵn trên hóa đơn gốc
+// (đúng công thức/độ dung sai đang dùng ở frontend — xem calcTotals/calcUSDTotal trong src/helpers.js).
+// Không có tổng in sẵn để đối chiếu, hoặc lệch tổng, hoặc JSON hỏng → coi như không đủ tin cậy, dùng Claude.
+// GEMINI_RELIABLE_MODELS: xếp theo tốc độ đo được (nhanh trước, chậm sau) — dùng chung cho CẢ đọc hóa
+// đơn (callGeminiVision) LẪN dịch text (translateWithFallback bên dưới), vì cùng 1 lý do: free tier của
+// mỗi model là 1 quota RIÊNG, nhiều người dùng app cùng lúc dễ làm 1 model hết quota (429) hoặc quá tải
+// (503) như đã thấy với gemini-3.8-flash lúc test — xoay qua model kế tiếp trong lúc model trước gặp
+// lỗi giúp tăng hẳn khả năng vẫn đọc/dịch được bằng free thay vì rơi xuống Claude ngay. Không đưa
+// gemini-3.7-flash/3.8-flash/*-pro-* vào đây vì lúc test đều timeout hoặc hết quota gần như toàn bộ —
+// không đáng tin cho chuỗi này.
+const GEMINI_RELIABLE_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-flash-lite-latest',
+  'gemini-3.1-flash-lite',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-3-flash-preview',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+];
+
+async function callGeminiVision(model: string, prompt: string, apiKey: string, mimeType: string, base64Data: string): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000); // 1 model treo lâu không được kéo chậm cả chuỗi
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ inlineData: { mimeType, data: base64Data } }, { text: prompt }] }],
+        generationConfig: { maxOutputTokens: 4000 },
+      }),
+    });
+    if (!res.ok) throw new Error(`Gemini ${model} (vision) HTTP ${res.status}`);
+    const data = await res.json();
+    const text = (data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '').trim();
+    if (!text) throw new Error(`Gemini ${model} (vision) trả về rỗng`);
+    return text;
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') throw new Error(`Gemini ${model} (vision) timeout 20s`);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+type GoodsItem = { tenHang?: unknown; soLuong?: unknown; donGia?: unknown; thanhTien?: unknown; vatRate?: unknown };
+type InvoiceExtraction = { goods?: GoodsItem[]; tongCongInHoaDon?: number | string | null };
+
+// Đối chiếu y hệt công thức + dung sai đang dùng ở CreateDDH.jsx (vat, dung sai 1) và
+// CreateDDHUT.jsx (goods_usd, dung sai 0.5) để 1 kết quả "đạt" ở đây cũng sẽ không bị cảnh báo
+// aiMismatch trên giao diện.
+function isValidInvoiceExtraction(mode: string, parsed: InvoiceExtraction): boolean {
+  const goods = parsed.goods;
+  if (!Array.isArray(goods) || goods.length === 0) return false;
+  for (const g of goods) {
+    if (typeof g.tenHang !== 'string' || !g.tenHang.trim()) return false;
+    if (![g.soLuong, g.donGia, g.thanhTien].every((v) => Number.isFinite(Number(v)))) return false;
+  }
+  const printed = parsed.tongCongInHoaDon;
+  if (printed === null || printed === undefined || printed === '') return false;
+
+  let aiTotal: number;
+  if (mode === 'vat') {
+    let subtotal = 0, vat = 0;
+    for (const g of goods) {
+      const pre = Number(g.thanhTien) || 0;
+      const rate = g.vatRate !== undefined ? Number(g.vatRate) : 8;
+      subtotal += pre;
+      vat += Math.round(pre * rate / 100);
+    }
+    aiTotal = subtotal + vat;
+  } else {
+    aiTotal = goods.reduce((sum: number, g) => sum + (Number(g.thanhTien) || 0), 0);
+  }
+  const tolerance = mode === 'vat' ? 1 : 0.5;
+  return Math.abs(aiTotal - Number(printed)) <= tolerance;
+}
+
+// GEMINI_TEXT_MODELS: đã test riêng chất lượng dịch (khác hẳn OCR) trên 6 ca dịch tên hàng (có mã hàng,
+// không trùng 10 ví dụ mẫu trong prompt) + 9 địa chỉ thật — chỉ 4 model "flash-lite" trong danh sách
+// GEMINI_RELIABLE_MODELS đúng 100% cả 2 loại (giữ đúng mã, sạch dấu tiếng Việt, đúng thứ tự địa chỉ).
+// 3 model "flash" đầy đủ còn lại KHÔNG đưa vào đây dù OCR dùng tốt: gemini-3.6-flash lỗi 400 "invalid
+// argument" toàn bộ (không tương thích cách gọi text-only kèm thinkingConfig), gemini-3.5-flash dịch
+// sót dấu tiếng Việt 1 lần ("Lac Long Quân" thay vì "Lac Long Quan"), và gemini-3-flash-preview/3.5-flash
+// đều dễ hết quota khi gọi nhiều — tác vụ dịch bắn nhiều hơn hẳn OCR (mỗi lần blur ô mô tả) nên cần
+// model ổn định hơn là "mạnh" hơn.
+const GEMINI_TEXT_MODELS = GEMINI_RELIABLE_MODELS.slice(0, 4);
+
 // Chuỗi fallback: câu "đơn giản" thử lần lượt các model free trước (dừng ngay khi có 1 cái chạy được),
-// hết quota/lỗi cả 3 mới rơi xuống Claude. Câu "phức tạp" đi thẳng Claude, bỏ qua tầng free.
+// hết quota/lỗi cả Groq + 4 model Gemini (GEMINI_TEXT_MODELS) mới rơi xuống Claude. Câu "phức tạp"
+// đi thẳng Claude, bỏ qua tầng free.
 // forceSimple: bỏ qua bước phân loại theo mã hàng — dùng cho translate_address_en vì địa chỉ không có mã hàng.
 async function translateWithFallback(
   prompt: string,
@@ -125,8 +222,11 @@ async function translateWithFallback(
   if (complexity === 'simple') {
     const attempts: Array<[string, () => Promise<string>]> = [];
     if (keys.groq) attempts.push(['Groq qwen3.8-27b', () => callGroqModel('qwen/qwen3.8-27b', prompt, keys.groq!)]);
-    if (keys.gemini) attempts.push(['Gemini 3.5 Flash-Lite', () => callGeminiModel('gemini-3.5-flash-lite', prompt, keys.gemini!, false)]);
-    if (keys.gemini) attempts.push(['Gemini 3.8 Flash', () => callGeminiModel('gemini-3.8-flash', prompt, keys.gemini!, true)]);
+    if (keys.gemini) {
+      for (const model of GEMINI_TEXT_MODELS) {
+        attempts.push([`Gemini ${model}`, () => callGeminiModel(model, prompt, keys.gemini!, false)]);
+      }
+    }
     for (const [name, attempt] of attempts) {
       try {
         return await attempt();
@@ -235,6 +335,26 @@ Deno.serve(async (req) => {
       return json({ error: 'Thiếu dữ liệu ảnh/file gửi lên.' }, 400);
     }
     const prompt = PROMPTS[mode] || PROMPTS.vat;
+
+    // Xoay lần lượt qua GEMINI_RELIABLE_MODELS (free) — chỉ nhận kết quả khi đối chiếu tổng khớp; model
+    // lỗi (hết quota/quá tải/timeout) hoặc đọc sai thì thử model kế tiếp; hết cả 7 mới rơi xuống Claude.
+    const geminiKey = Deno.env.get('GEMINI_API_KEY');
+    if (geminiKey) {
+      for (const model of GEMINI_RELIABLE_MODELS) {
+        try {
+          const rawText = await callGeminiVision(model, prompt, geminiKey, mediaType, imageBase64);
+          const gm = rawText.match(/\{[\s\S]*\}/);
+          const parsedGemini = gm ? JSON.parse(gm[0]) : null;
+          if (parsedGemini && isValidInvoiceExtraction(mode, parsedGemini)) {
+            return json(parsedGemini);
+          }
+          console.error(`[readInvoice] ${model} đọc được nhưng không qua đối chiếu tổng (hoặc JSON hỏng) — thử model free tiếp theo.`);
+        } catch (err) {
+          console.error(`[readInvoice] ${model} lỗi, thử model free tiếp theo:`, (err as Error).message);
+        }
+      }
+      console.error('[readInvoice] Mọi model Gemini free đều thất bại/không qua đối chiếu — dùng Claude.');
+    }
 
     const isPdf = mediaType === 'application/pdf';
     const fileBlock = isPdf
