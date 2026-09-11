@@ -7,6 +7,28 @@
 // của Edge Function "clever-handler" trên Supabase, chỉ admin project mới cấu hình được.
 import { supabase } from './supabase';
 const TABLE = 'app_storage';
+// Ảnh hóa đơn VAT lưu trong Supabase Storage (không lưu base64 trong Postgres nữa — cột jsonb
+// vat_invoice_image trên bảng contracts giờ chỉ chứa { path, mediaType }, ảnh thật nằm ở bucket này).
+const VAT_INVOICE_BUCKET = 'vat-invoices';
+
+function mediaTypeToExt(mediaType) {
+  const map = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+  return map[mediaType] || 'bin';
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = (ev) => resolve(ev.target.result.split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+async function base64ToBlob(base64, mediaType) {
+  const res = await fetch(`data:${mediaType};base64,${base64}`);
+  return res.blob();
+}
 // 7 cột theo dõi hồ sơ "SALE GỬI / NHÂN SỰ GỬI / KẾ TOÁN NHẬN" trên bảng invoice_goods.
 const INVOICE_GOODS_WORKFLOW_FIELDS = [
   'sale_sent', 'sale_sent_date',
@@ -160,7 +182,23 @@ export const api = {
     // data.vatInvoiceImage để phần hiển thị (ContractViewer, previews...) dùng y như cũ, không cần đổi.
     const { data: row, error } = await supabase.from('contracts').select('*').eq('id', dbId).single();
     if (error) throw new Error(error.message);
-    if (row.vat_invoice_image) row.data = { ...row.data, vatInvoiceImage: row.vat_invoice_image };
+    if (row.vat_invoice_image?.path) {
+      // Ảnh đã migrate sang Storage — tải về và giải mã lại thành base64 ngay tại đây (không dùng
+      // signed/public URL) để html2canvas/html2pdf.js và html-docx-js (xuất PDF/Word) vẫn nhúng được
+      // ảnh trực tiếp vào file xuất ra, không phụ thuộc 1 URL còn sống hay đã hết hạn.
+      const { data: blob, error: downloadError } = await supabase.storage
+        .from(VAT_INVOICE_BUCKET)
+        .download(row.vat_invoice_image.path);
+      if (downloadError) {
+        console.error('Không tải được ảnh hóa đơn VAT từ Storage:', downloadError.message);
+      } else {
+        const base64 = await blobToBase64(blob);
+        row.data = { ...row.data, vatInvoiceImage: { data: base64, mediaType: row.vat_invoice_image.mediaType } };
+      }
+    } else if (row.vat_invoice_image?.data) {
+      // Legacy — ảnh chưa migrate, vẫn còn nằm thẳng trong jsonb như trước.
+      row.data = { ...row.data, vatInvoiceImage: row.vat_invoice_image };
+    }
     return row;
   },
 
@@ -169,11 +207,28 @@ export const api = {
     // vì cùng 1 cột jsonb nặng (do ảnh) khiến Postgres phải giải nén toàn bộ mỗi lần đọc dù chỉ cần vài field nhẹ,
     // làm list_contracts_slim chậm hẳn dù đã cố lọc bỏ field này khỏi kết quả trả về.
     const { vatInvoiceImage, ...restContract } = contract;
+    let vatInvoiceImageColumn = null;
+    if (vatInvoiceImage?.data) {
+      // Ảnh mới chọn (base64 trong state) — upload lên Storage, cột DB chỉ lưu path.
+      // Path = uuid ngẫu nhiên (không dùng id hợp đồng) — sinh được ngay cả khi hợp đồng chưa có id
+      // (trường hợp tạo mới), không cần ghi 2 lần (insert rồi mới update lại path).
+      const path = `${crypto.randomUUID()}.${mediaTypeToExt(vatInvoiceImage.mediaType)}`;
+      const blob = await base64ToBlob(vatInvoiceImage.data, vatInvoiceImage.mediaType);
+      const { error: uploadError } = await supabase.storage
+        .from(VAT_INVOICE_BUCKET)
+        .upload(path, blob, { contentType: vatInvoiceImage.mediaType });
+      if (uploadError) throw new Error('Lỗi upload ảnh hóa đơn VAT: ' + uploadError.message);
+      vatInvoiceImageColumn = { path, mediaType: vatInvoiceImage.mediaType };
+    } else if (vatInvoiceImage?.path) {
+      // Đã là path Storage sẵn (không xảy ra trong luồng hiện tại vì getContractFull luôn trả base64,
+      // nhưng xử lý phòng hờ) — giữ nguyên, không upload lại.
+      vatInvoiceImageColumn = vatInvoiceImage;
+    }
     const payload = {
       category, doc_type: docType,
       contract_id: contract.contractId,
       data: restContract,
-      vat_invoice_image: vatInvoiceImage || null,
+      vat_invoice_image: vatInvoiceImageColumn,
       updated_at: new Date().toISOString(),
     };
     if (_dbId) {
@@ -192,6 +247,13 @@ export const api = {
   },
 
   async deleteContractRow(dbId) {
+    // Dọn ảnh trong Storage trước khi xóa row (nếu đã migrate) — không throw nếu lỗi, chỉ log,
+    // để 1 lỗi Storage không chặn được việc xóa hợp đồng.
+    const { data: row } = await supabase.from('contracts').select('vat_invoice_image').eq('id', dbId).single();
+    if (row?.vat_invoice_image?.path) {
+      const { error: removeError } = await supabase.storage.from(VAT_INVOICE_BUCKET).remove([row.vat_invoice_image.path]);
+      if (removeError) console.error('Không xóa được ảnh hóa đơn VAT trong Storage:', removeError.message);
+    }
     const { error } = await supabase.from('contracts').delete().eq('id', dbId);
     if (error) throw new Error(error.message);
   },
