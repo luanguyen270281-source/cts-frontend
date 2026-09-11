@@ -225,9 +225,9 @@ export const CreateDDHUT = ({ sellers, customers, onSave, setPage, editData, isA
             <span className="text-xs text-gray-400">hoặc Cách 2: <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-gray-600">Ctrl/Cmd + V</kbd> dán ảnh đơn hàng</span>
             <span className="text-xs text-gray-400">hoặc Cách 3: bấm "+ Thêm dòng" để nhập tay bên dưới</span>
           </div>
-          {aiError && <Alert type="error">{aiError}</Alert>}
+          {aiError && <Alert type="error" onClose={() => setAiError('')}>{aiError}</Alert>}
           {aiMismatch && (
-            <Alert type="warn">
+            <Alert type="warn" onClose={() => setAiMismatch(null)}>
               ⚠️ Tổng AI tính được ({fmtNum(aiMismatch.aiTotal)} USD) không khớp với tổng in trên invoice gốc ({fmtNum(aiMismatch.printedTotal)} USD) — vui lòng kiểm tra lại các dòng hàng bên dưới trước khi lưu.
             </Alert>
           )}

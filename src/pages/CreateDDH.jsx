@@ -361,9 +361,9 @@ export const CreateDDH = ({ sellers, customers, onSave, setPage, editData, isAdm
             <div className="text-xs text-gray-400 mb-1">hoặc Cách 4: chọn từ hóa đơn đã nhập Excel sẵn</div>
             <InvoiceGoodsPicker onApply={applyInvoiceGoods} />
           </div>
-          {aiError && <Alert type="error">{aiError}</Alert>}
+          {aiError && <Alert type="error" onClose={() => setAiError('')}>{aiError}</Alert>}
           {aiMismatch && (
-            <Alert type="warn">
+            <Alert type="warn" onClose={() => setAiMismatch(null)}>
               ⚠️ Tổng AI tính được ({fmtNum(aiMismatch.aiTotal)} đ) không khớp với tổng in trên hóa đơn gốc ({fmtNum(aiMismatch.printedTotal)} đ) — vui lòng kiểm tra lại các dòng hàng bên dưới trước khi lưu.
             </Alert>
           )}

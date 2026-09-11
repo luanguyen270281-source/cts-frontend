@@ -370,7 +370,7 @@ export const CreateBBBG = ({ sellers, customers, onSave, setPage, editData, isAd
             <span className="text-xs text-gray-400">hoặc <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-gray-600">Ctrl/Cmd + V</kbd> dán ảnh hóa đơn</span>
             <span className="text-xs text-gray-400">hoặc bấm "+ Thêm dòng" để nhập tay bên dưới</span>
           </div>
-          {aiError && <Alert type="error">{aiError}</Alert>}
+          {aiError && <Alert type="error" onClose={() => setAiError('')}>{aiError}</Alert>}
           <div className="mb-3">
             <div className="text-xs text-gray-400 mb-1">hoặc chọn từ hóa đơn đã nhập Excel sẵn</div>
             <InvoiceGoodsPicker onApply={applyInvoiceGoods} />
