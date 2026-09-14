@@ -128,14 +128,26 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
 
   // ── Thanh cuộn ngang phụ ở TRÊN đầu bảng ─────────────────────────────
   // Bảng có thể tới 50 dòng/trang, rất dài — nếu chỉ có 1 thanh cuộn ngang ở tận đáy bảng thì phải
-  // cuộn dọc xuống hết mới cuộn ngang được. Thêm 1 thanh mảnh ngay trên đầu bảng, đồng bộ 2 chiều
-  // với thanh cuộn thật (kéo thanh nào cũng được, cả 2 luôn khớp nhau).
-  const topScrollRef = useRef(null);
+  // cuộn dọc xuống hết mới cuộn ngang được. Thêm 1 thanh mảnh ngay trên đầu bảng cho tiện.
+  //
+  // ĐÃ THỬ và KHÔNG ăn thua: dùng 1 div overflow-x-auto thật thứ 2 ở trên, đồng bộ 2 chiều bằng
+  // cách ghi scrollLeft qua lại (kể cả gộp theo requestAnimationFrame) — vẫn giật khi kéo, vì mỗi
+  // lần ghi scrollLeft là bắt trình duyệt chạy lại TOÀN BỘ máy cuộn gốc (tính lại scrollbar tự
+  // nhiên, tự vẽ lại thumb tùy chỉnh của NÓ) trên 1 phần tử scroll thật thứ 2 — tốn kém bất kể ghi
+  // bao nhiêu lần/giây.
+  //
+  // Cách này thay bằng: thanh trên KHÔNG PHẢI phần tử cuộn thật nữa (không overflow-x-auto, không
+  // scrollbar riêng) — chỉ là 1 track tĩnh + 1 "thumb" tự vẽ (1 div thường). Kéo thumb thì tính
+  // toán rồi set thẳng scrollLeft của bảng thật; ngược lại khi cuộn bảng thật (kéo scrollbar thật ở
+  // dưới, hoặc lăn chuột ngang) thì chỉ cập nhật vị trí thumb bằng CSS transform — phép này chỉ tốn
+  // ở tầng composite (GPU dịch chuyển 1 layer có sẵn), không kéo theo tính lại layout/scrollbar như
+  // cách cũ. Kết quả: chỉ còn ĐÚNG 1 phần tử cuộn thật (scrollbar thật) trong toàn bộ khối bảng.
+  const topTrackRef = useRef(null);
+  const topThumbRef = useRef(null);
   const tableScrollRef = useRef(null);
   const tableElRef = useRef(null);
   const [tableRenderWidth, setTableRenderWidth] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
-  const syncingRef = useRef(false); // chặn 2 bên tự đẩy qua đẩy lại vô hạn khi đồng bộ
 
   useLayoutEffect(() => {
     const tableEl = tableElRef.current;
@@ -151,12 +163,55 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
   // Chỉ hiện viền phân tách ở mép cột đóng băng khi THỰC SỰ đang cần cuộn ngang (bảng rộng hơn
   // khung nhìn) — màn đủ rộng để hiện hết bảng thì không cần viền này, đỡ rối mắt không cần thiết.
   const needsHScroll = containerWidth > 0 && tableRenderWidth > containerWidth + 1;
+  // Độ rộng thumb theo % — tỉ lệ phần đang nhìn thấy / tổng chiều rộng bảng, giống hệt tỉ lệ 1
+  // scrollbar thật sẽ tự tính.
+  const topThumbPct = tableRenderWidth > 0 ? Math.min(100, (containerWidth / tableRenderWidth) * 100) : 100;
 
-  const syncScroll = (fromRef, toRef) => () => {
-    if (syncingRef.current || !fromRef.current || !toRef.current) return;
-    syncingRef.current = true;
-    toRef.current.scrollLeft = fromRef.current.scrollLeft;
-    syncingRef.current = false;
+  // Cập nhật vị trí thumb bằng cách ghi thẳng style.transform lên DOM (không qua setState/re-render
+  // React) — gọi mỗi khi bảng thật cuộn ngang (scrollbar thật, lăn chuột ngang...) để thanh trên
+  // luôn khớp, mà không phải "cuộn" 1 phần tử thật thứ 2 nào cả.
+  const updateTopThumb = () => {
+    const track = topTrackRef.current;
+    const thumb = topThumbRef.current;
+    const table = tableScrollRef.current;
+    if (!track || !thumb || !table) return;
+    const maxThumbLeft = track.clientWidth - thumb.clientWidth;
+    const maxScrollLeft = table.scrollWidth - table.clientWidth;
+    const ratio = maxScrollLeft > 0 ? Math.min(1, Math.max(0, table.scrollLeft / maxScrollLeft)) : 0;
+    thumb.style.transform = `translateX(${ratio * Math.max(0, maxThumbLeft)}px)`;
+  };
+  // Đồng bộ lại thumb mỗi khi kích thước bảng/khung nhìn đổi (kéo giãn cột, đổi cỡ cửa sổ...).
+  useLayoutEffect(() => { updateTopThumb(); });
+
+  // Kéo (hoặc bấm) trên thanh trên → set thẳng scrollLeft của bảng thật theo tỉ lệ vị trí chuột.
+  // Bảng thật tự cuộn (native) rồi bắn sự kiện scroll, updateTopThumb() ở trên tự chạy theo để vẽ
+  // lại thumb khớp — không cần set style thumb ở đây, tránh 2 nơi cùng ghi đè nhau.
+  const startTopDrag = (e) => {
+    e.preventDefault();
+    const track = topTrackRef.current;
+    const thumb = topThumbRef.current;
+    const table = tableScrollRef.current;
+    if (!track || !thumb || !table) return;
+    const trackRect = track.getBoundingClientRect();
+    const thumbWidth = thumb.clientWidth;
+    const maxThumbLeft = trackRect.width - thumbWidth;
+    const maxScrollLeft = table.scrollWidth - table.clientWidth;
+    if (maxThumbLeft <= 0 || maxScrollLeft <= 0) return;
+
+    const moveTo = (clientX) => {
+      const x = clientX - trackRect.left - thumbWidth / 2;
+      const clamped = Math.min(Math.max(x, 0), maxThumbLeft);
+      table.scrollLeft = (clamped / maxThumbLeft) * maxScrollLeft;
+    };
+    moveTo(e.clientX);
+
+    const onMove = (ev) => moveTo(ev.clientX);
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   };
 
   const maxPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -584,18 +639,22 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
 
       {bulkOpen && <InvoiceGoodsBulkViewer invoices={selectedInvoices} onClose={() => setBulkOpen(false)} />}
 
-      {/* 1 khối card duy nhất (viền/bo góc/đổ bóng dùng chung) chứa: thanh cuộn ngang mảnh ở trên
-          (đồng bộ 2 chiều với thanh cuộn thật của bảng, để không phải cuộn dọc xuống tận đáy 50
-          dòng mới cuộn ngang được) + phần bảng thật bên dưới — nhìn liền 1 khối, không tách rời. */}
+      {/* 1 khối card duy nhất (viền/bo góc/đổ bóng dùng chung) chứa: thanh cuộn ngang mảnh giả ở
+          trên (không phải phần tử cuộn thật — xem giải thích ở khai báo topTrackRef phía trên) +
+          phần bảng thật bên dưới — nhìn liền 1 khối, không tách rời. */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {rows.length > 0 && (
+        {rows.length > 0 && needsHScroll && (
           <div
-            ref={topScrollRef}
-            onScroll={syncScroll(topScrollRef, tableScrollRef)}
-            className="wide-table-scroll overflow-x-auto overflow-y-hidden border-b border-gray-200 bg-gray-50"
+            ref={topTrackRef}
+            onMouseDown={startTopDrag}
+            className="relative border-b border-gray-200 bg-gray-100 cursor-pointer"
             style={{ height: 14 }}
           >
-            <div style={{ width: tableRenderWidth, height: 1 }} />
+            <div
+              ref={topThumbRef}
+              className="absolute top-0 left-0 h-full rounded-lg hover:opacity-80"
+              style={{ width: `${topThumbPct}%`, background: '#93c5fd', border: '3px solid #f3f4f6', boxSizing: 'border-box' }}
+            />
           </div>
         )}
 
@@ -604,7 +663,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
             chìm/khó thấy như thanh cuộn mặc định của trình duyệt, giúp người dùng biết còn cột ẩn bên phải. */}
         <div
           ref={tableScrollRef}
-          onScroll={syncScroll(tableScrollRef, topScrollRef)}
+          onScroll={updateTopThumb}
           className="wide-table-scroll overflow-x-auto"
         >
         {rows.length === 0 ? (
