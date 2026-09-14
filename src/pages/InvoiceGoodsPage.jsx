@@ -28,15 +28,17 @@ const COLS = [
   { key: 'count',    width: 130, min: 60,  resizable: true  },
   { key: 'total',    width: 130, min: 90,  resizable: true  },
   { key: 'note',     width: 200, min: 120, resizable: true  },
-  // 7 cột theo dõi hồ sơ SALE GỬI → NHÂN SỰ GỬI → KẾ TOÁN NHẬN — để cuối bảng, trước cột Xóa.
-  // Độ rộng các cột "Ngày ..." và "Hạn (số ngày)" đủ rộng để tiêu đề nằm gọn 1 dòng, không
-  // xuống dòng lệch nhau giữa các cột (so le rất khó nhìn).
+  // 9 cột theo dõi hồ sơ SALE GỬI → NHÂN SỰ GỬI → KẾ TOÁN NHẬN HỒ SƠ → KẾ TOÁN NHẬN HỢP ĐỒNG —
+  // để cuối bảng, trước cột Xóa. Độ rộng các cột "Ngày ..." và "Hạn (số ngày)" đủ rộng để tiêu đề
+  // nằm gọn 1 dòng, không xuống dòng lệch nhau giữa các cột (so le rất khó nhìn).
   { key: 'sale_sent',                width: 110, min: 90,  resizable: true },
   { key: 'sale_sent_date',           width: 160, min: 110, resizable: true },
   { key: 'hr_sent',                  width: 110, min: 90,  resizable: true },
   { key: 'hr_sent_date',             width: 190, min: 110, resizable: true },
   { key: 'accounting_received',      width: 110, min: 90,  resizable: true },
   { key: 'accounting_received_date', width: 190, min: 110, resizable: true },
+  { key: 'accounting_contract_received',      width: 150, min: 100, resizable: true },
+  { key: 'accounting_contract_received_date', width: 200, min: 110, resizable: true },
   { key: 'deadline_days',            width: 130, min: 90,  resizable: true },
   { key: 'invoice_note', width: 200, min: 120, resizable: true },
   { key: 'action',   width: 70,  min: 60,  resizable: false },
@@ -187,7 +189,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
       setRows(newRows);
       setTotalCount(tc);
       setPage(pageToLoad);
-      // Lấy riêng 7 cột theo dõi hồ sơ cho các dòng vừa tải (không phụ thuộc hàm RPC). Nếu cột
+      // Lấy riêng 9 cột theo dõi hồ sơ cho các dòng vừa tải (không phụ thuộc hàm RPC). Nếu cột
       // chưa tồn tại trên DB thì bỏ qua, không làm hỏng danh sách.
       const ids = newRows.map(r => r.id).filter(Boolean);
       if (ids.length > 0) {
@@ -213,7 +215,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
   const handlePickFile = () => fileRef.current?.click();
 
   const [exporting, setExporting] = useState(false);
-  // Xuất Excel danh sách hóa đơn theo đúng bộ lọc đang xem, kèm 7 cột theo dõi hồ sơ.
+  // Xuất Excel danh sách hóa đơn theo đúng bộ lọc đang xem, kèm 9 cột theo dõi hồ sơ.
   const handleExportExcel = async () => {
     setExporting(true);
     try {
@@ -232,7 +234,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
         offset += CHUNK;
         if (offset > 100000) break; // chặn an toàn
       }
-      // Lấy 7 cột theo dõi hồ sơ cho tất cả dòng, 1 lệnh gọi/lô.
+      // Lấy 9 cột theo dõi hồ sơ cho tất cả dòng, 1 lệnh gọi/lô.
       let extraMap = {};
       const ids = all.map(r => r.id).filter(Boolean);
       for (let i = 0; i < ids.length; i += 500) {
@@ -258,8 +260,10 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
           'Ngày Sale gửi': w.sale_sent_date || '',
           'Nhân sự gửi': w.hr_sent ? 'Đã gửi' : 'Chưa gửi',
           'Ngày Nhân sự gửi': w.hr_sent_date || '',
-          'Kế toán nhận': w.accounting_received ? 'Đã nhận' : 'Chưa nhận',
-          'Ngày Kế toán nhận': w.accounting_received_date || '',
+          'Kế toán nhận hồ sơ': w.accounting_received ? 'Đã nhận' : 'Chưa nhận',
+          'Ngày Kế toán nhận hồ sơ': w.accounting_received_date || '',
+          'Kế toán nhận hợp đồng': w.accounting_contract_received ? 'Đã nhận' : 'Chưa nhận',
+          'Ngày Kế toán nhận hợp đồng': w.accounting_contract_received_date || '',
           'Hạn (số ngày)': w.deadline_days ?? '',
           'Ghi chú hóa đơn': w.invoice_note || '',
         };
@@ -270,7 +274,9 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
         { wch: 6 }, { wch: 16 }, { wch: 12 }, { wch: 36 }, { wch: 14 },
         { wch: 30 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 18 },
         { wch: 24 },
-        { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 12 },
+        { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 12 },
+        { wch: 14 }, { wch: 18 },
+        { wch: 16 }, { wch: 12 },
         { wch: 24 },
       ];
       const wb = XLSX.utils.book_new();
@@ -385,7 +391,8 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
     }
   };
 
-  // Tích/chọn ngày/gõ số cho 7 cột theo dõi hồ sơ SALE GỬI / NHÂN SỰ GỬI / KẾ TOÁN NHẬN — chỉ admin.
+  // Tích/chọn ngày/gõ số cho 9 cột theo dõi hồ sơ SALE GỬI / NHÂN SỰ GỬI / KẾ TOÁN NHẬN HỒ SƠ /
+  // KẾ TOÁN NHẬN HỢP ĐỒNG — chỉ admin.
   // Cập nhật ngay trên giao diện rồi lưu xuống Supabase.
   const [hanDrafts, setHanDrafts] = useState({}); // { [id]: text đang gõ cho "Hạn (số ngày)" }
 
@@ -632,8 +639,10 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
               <ResizableTh col="sale_sent_date"            className="text-center px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Sale gửi</ResizableTh>
               <ResizableTh col="hr_sent"                   className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Nhân sự gửi</ResizableTh>
               <ResizableTh col="hr_sent_date"               className="text-center px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Nhân sự gửi</ResizableTh>
-              <ResizableTh col="accounting_received"       className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Kế toán nhận</ResizableTh>
-              <ResizableTh col="accounting_received_date"  className="text-center px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Kế toán nhận</ResizableTh>
+              <ResizableTh col="accounting_received"       className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Kế toán nhận hồ sơ</ResizableTh>
+              <ResizableTh col="accounting_received_date"  className="text-center px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Kế toán nhận hồ sơ</ResizableTh>
+              <ResizableTh col="accounting_contract_received"       className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Kế toán nhận hợp đồng</ResizableTh>
+              <ResizableTh col="accounting_contract_received_date"  className="text-center px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Kế toán nhận hợp đồng</ResizableTh>
               <ResizableTh col="deadline_days"              className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Hạn (số ngày)</ResizableTh>
               <ResizableTh col="invoice_note" className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ghi chú hóa đơn</ResizableTh>
               <ResizableTh col="action"   className="text-center px-5 py-3"                    colWidths={colWidths} onResize={startResize} onReset={resetColWidth}></ResizableTh>
@@ -689,8 +698,8 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                       inv.note || <span className="text-gray-300">—</span>
                     )}
                   </td>
-                  {/* 7 cột theo dõi hồ sơ: Sale (không chỉ Admin) cũng sửa được — DB có trigger riêng
-                      chặn non-admin sửa các cột khác (số tiền, hàng hóa...) ngoài 7 cột này. */}
+                  {/* 9 cột theo dõi hồ sơ: Sale (không chỉ Admin) cũng sửa được — DB có trigger riêng
+                      chặn non-admin sửa các cột khác (số tiền, hàng hóa...) ngoài 9 cột này. */}
                   <td className="px-3 py-3 text-center">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'sale_sent')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'sale_sent')] === 'saved'}>
                       <input type="checkbox" checked={!!inv.sale_sent} disabled={cellStatus[cellKey(inv.id, 'sale_sent')] === 'saving'}
@@ -734,6 +743,20 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
+                    <WorkflowCell saving={cellStatus[cellKey(inv.id, 'accounting_contract_received')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'accounting_contract_received')] === 'saved'}>
+                      <input type="checkbox" checked={!!inv.accounting_contract_received} disabled={cellStatus[cellKey(inv.id, 'accounting_contract_received')] === 'saving'}
+                        onChange={() => toggleWorkflowFlag(inv.id, 'accounting_contract_received', !!inv.accounting_contract_received)}
+                        className="cursor-pointer w-4 h-4 accent-green-600" title="Tích khi Kế toán đã nhận hợp đồng" />
+                    </WorkflowCell>
+                  </td>
+                  <td className="px-3 py-3">
+                    <WorkflowCell saving={cellStatus[cellKey(inv.id, 'accounting_contract_received_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'accounting_contract_received_date')] === 'saved'}>
+                      <WorkflowDatePicker value={inv.accounting_contract_received_date} disabled={cellStatus[cellKey(inv.id, 'accounting_contract_received_date')] === 'saving'}
+                        onChange={v => saveWorkflowDate(inv.id, 'accounting_contract_received_date', v, inv.accounting_contract_received_date)}
+                        onClear={() => saveWorkflowDate(inv.id, 'accounting_contract_received_date', '', inv.accounting_contract_received_date)} />
+                    </WorkflowCell>
+                  </td>
+                  <td className="px-3 py-3 text-center">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'deadline_days')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'deadline_days')] === 'saved'}>
                       <input type="number" min="0" value={hanDrafts[inv.id] ?? (inv.deadline_days ?? '')} disabled={cellStatus[cellKey(inv.id, 'deadline_days')] === 'saving'}
                         onChange={e => setHanDrafts(prev => ({ ...prev, [inv.id]: e.target.value }))}
@@ -769,7 +792,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
   );
 };
 
-// Bọc 1 ô đang sửa (7 cột theo dõi hồ sơ): mờ đi + khóa tạm (pointer-events-none) trong lúc đang
+// Bọc 1 ô đang sửa (9 cột theo dõi hồ sơ): mờ đi + khóa tạm (pointer-events-none) trong lúc đang
 // lưu, có chấm xoay nhỏ ở góc; lưu xong thì chớp nền xanh nhạt ~0.5s rồi trở lại bình thường.
 // Định nghĩa ở module scope (không lồng trong InvoiceGoodsPage) để giữ nguyên identity component
 // qua mỗi lần render — nếu định nghĩa lồng trong, React sẽ coi đây là component khác mỗi lần cha
@@ -781,7 +804,7 @@ function formatVNDate(value) {
   return `${d}/${m}/${y}`;
 }
 
-// 1 ô ngày trong 7 cột theo dõi hồ sơ: input[type=date] thật bị ẩn hẳn (sr-only) để trình duyệt
+// 1 ô ngày trong 9 cột theo dõi hồ sơ: input[type=date] thật bị ẩn hẳn (sr-only) để trình duyệt
 // không tự vẽ "mm/dd/yyyy" hay highlight ô đang chọn — thay vào đó hiện 1 nút giả (rỗng khi chưa
 // có ngày, "dd/mm/yyyy" khi đã chọn). Bấm nút giả -> showPicker() trên input ẩn để mở lịch chọn.
 function WorkflowDatePicker({ value, disabled, onChange, onClear }) {

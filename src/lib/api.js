@@ -29,11 +29,13 @@ async function base64ToBlob(base64, mediaType) {
   const res = await fetch(`data:${mediaType};base64,${base64}`);
   return res.blob();
 }
-// 7 cột theo dõi hồ sơ "SALE GỬI / NHÂN SỰ GỬI / KẾ TOÁN NHẬN" trên bảng invoice_goods.
+// 9 cột theo dõi hồ sơ "SALE GỬI / NHÂN SỰ GỬI / KẾ TOÁN NHẬN HỒ SƠ / KẾ TOÁN NHẬN HỢP ĐỒNG"
+// trên bảng invoice_goods.
 const INVOICE_GOODS_WORKFLOW_FIELDS = [
   'sale_sent', 'sale_sent_date',
   'hr_sent', 'hr_sent_date',
   'accounting_received', 'accounting_received_date',
+  'accounting_contract_received', 'accounting_contract_received_date',
   'deadline_days',
 ];
 export const api = {
@@ -261,7 +263,7 @@ export const api = {
   // "Kế toán nhận Hợp đồng" — chỉ dùng cho 3 màn HĐ Nguyên Tắc. Cột accounting_received nằm ở
   // cấp cột thật trên bảng contracts (không phải trong jsonb "data"), nên list_contracts_paged
   // (RPC) không trả về — phải lấy riêng bằng 1 lệnh gọi nhẹ theo id, giống hệt cách InvoiceGoodsPage
-  // lấy 7 cột theo dõi hồ sơ qua getInvoiceGoodsExtraMap.
+  // lấy 9 cột theo dõi hồ sơ qua getInvoiceGoodsExtraMap.
   async getContractsAccountingMap(ids) {
     if (!ids || ids.length === 0) return {};
     const { data, error } = await supabase.from('contracts').select('id, accounting_received').in('id', ids);
@@ -436,7 +438,7 @@ export const api = {
     if (error) throw new Error(error.message);
   },
 
-  // Lấy 7 cột theo dõi hồ sơ + "Ghi chú hóa đơn" cho 1 loạt id, trong 1 lần gọi Supabase duy nhất.
+  // Lấy 9 cột theo dõi hồ sơ + "Ghi chú hóa đơn" cho 1 loạt id, trong 1 lần gọi Supabase duy nhất.
   // → trả về { [id]: { sale_sent, sale_sent_date, ..., invoice_note } }
   async getInvoiceGoodsExtraMap(ids) {
     if (!ids || ids.length === 0) return {};
