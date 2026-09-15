@@ -219,6 +219,7 @@ export const CreateDDH = ({ sellers, customers, onSave, setPage, editData, isAdm
   const autoContractId = buildContractId({ type: 'DDH', date, saleCode, stt, sellerName: seller.companyName, customerName: customer.companyName });
   const contractId = idOverride !== null ? idOverride : autoContractId;
   const getContract = () => (customerId && sellerId) ? {
+    ...(isEdit ? { _dbId: editData._dbId } : {}),
     contractId, type: 'DDH', customerId, sellerId, saleCode, stt,
     customerName: customer.companyName, date, status: editData?.status || 'Hiệu lực', goods,
     customerSnapshot: customer, sellerSnapshot: seller,

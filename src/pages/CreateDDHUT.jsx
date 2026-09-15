@@ -113,6 +113,7 @@ export const CreateDDHUT = ({ sellers, customers, onSave, setPage, editData, isA
   const autoContractId = buildContractId({ type: 'DDH_UT', date, saleCode, stt, sellerName: seller.companyName, customerName: customer.companyName });
   const contractId = idOverride !== null ? idOverride : autoContractId;
   const getContract = () => (customerId && sellerId) ? {
+    ...(isEdit ? { _dbId: editData._dbId } : {}),
     contractId, type: 'DDH_UT', customerId, sellerId, saleCode, stt,
     customerName: customer.companyName, date, status: editData?.status || 'Hiệu lực',
     customerSnapshot: customer, sellerSnapshot: seller,

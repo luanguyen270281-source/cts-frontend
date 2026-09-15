@@ -33,6 +33,7 @@ export const CreateHDNTUT = ({ sellers, customers, onSave, setPage, editData, is
   const autoContractId = buildContractId({ type: 'HDNT_UT', date, saleCode, stt, sellerName: seller.companyName, customerName: customer.companyName });
   const contractId = idOverride !== null ? idOverride : autoContractId;
   const preview = (customerId && sellerId) ? {
+    ...(isEdit ? { _dbId: editData._dbId } : {}),
     contractId, type: 'HDNT_UT', customerId, sellerId, saleCode, stt,
     customerName: customer.companyName, date, status: editData?.status || 'Hiệu lực', relatedContracts: editData?.relatedContracts || {},
     customerSnapshot: customer, sellerSnapshot: seller,

@@ -33,6 +33,7 @@ export const CreateHDNTVC = ({ sellers, customers, onSave, setPage, editData, is
   const autoContractId = buildContractId({ type: 'HDNT_VC', date, saleCode, stt, sellerName: seller.companyName, customerName: customer.companyName });
   const contractId = idOverride !== null ? idOverride : autoContractId;
   const preview = (customerId && sellerId) ? {
+    ...(isEdit ? { _dbId: editData._dbId } : {}),
     contractId, type: 'HDNT_VC', customerId, sellerId, saleCode, stt,
     customerName: customer.companyName, date, status: editData?.status || 'Hiệu lực', relatedContracts: editData?.relatedContracts || {},
     customerSnapshot: customer, sellerSnapshot: seller,

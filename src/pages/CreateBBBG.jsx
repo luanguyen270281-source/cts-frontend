@@ -239,6 +239,7 @@ export const CreateBBBG = ({ sellers, customers, onSave, setPage, editData, isAd
   const autoContractId = buildContractId({ type: 'BBBG', date, saleCode, stt, sellerName: seller.companyName, customerName: customer.companyName });
   const contractId = idOverride !== null ? idOverride : autoContractId;
   const getContract = () => (customerId && sellerId) ? {
+    ...(isEdit ? { _dbId: editData._dbId } : {}),
     contractId, type: 'BBBG', customerId, sellerId, saleCode, stt,
     customerName: customer.companyName, date, status: editData?.status || 'Hoàn thành', goods,
     customerSnapshot: customer, sellerSnapshot: seller,
