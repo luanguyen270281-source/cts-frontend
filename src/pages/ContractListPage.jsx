@@ -1,5 +1,5 @@
 // File: src/pages/ContractListPage.jsx
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Badge } from '../components/Badge';
 import { fmtNum } from '../helpers';
@@ -39,6 +39,72 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
   // Đánh dấu request mới nhất — đổi bộ lọc/trang liên tiếp nhanh thì request cũ trả về trễ hơn bị bỏ qua.
   const requestIdRef = useRef(0);
   const isFirstRefresh = useRef(true);
+
+  // ── Thanh cuộn ngang phụ ở TRÊN đầu bảng — y hệt cơ chế đã dùng cho InvoiceGoodsPage.jsx (xem
+  // giải thích chi tiết ở đó): thanh trên KHÔNG PHẢI phần tử cuộn thật (không overflow-x-auto riêng)
+  // mà chỉ là 1 track tĩnh + 1 "thumb" tự vẽ, đồng bộ 1 CHIỀU bằng cách đọc/ghi trực tiếp scrollLeft
+  // của bảng thật — tránh lặp lại lỗi giật do 2 scrollbar thật đồng bộ qua lại (commit 22945f3).
+  const topTrackRef = useRef(null);
+  const topThumbRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const tableElRef = useRef(null);
+  const [tableRenderWidth, setTableRenderWidth] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const tableEl = tableElRef.current;
+    const containerEl = tableScrollRef.current;
+    if (!tableEl || !containerEl || typeof ResizeObserver === 'undefined') return;
+    const roTable = new ResizeObserver(([entry]) => setTableRenderWidth(entry.contentRect.width));
+    const roContainer = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width));
+    roTable.observe(tableEl);
+    roContainer.observe(containerEl);
+    return () => { roTable.disconnect(); roContainer.disconnect(); };
+  }, [rows.length]);
+
+  // Chỉ hiện thanh cuộn giả ở trên khi THỰC SỰ cần cuộn ngang (bảng rộng hơn khung nhìn).
+  const needsHScroll = containerWidth > 0 && tableRenderWidth > containerWidth + 1;
+  const topThumbPct = tableRenderWidth > 0 ? Math.min(100, (containerWidth / tableRenderWidth) * 100) : 100;
+
+  const updateTopThumb = () => {
+    const track = topTrackRef.current;
+    const thumb = topThumbRef.current;
+    const table = tableScrollRef.current;
+    if (!track || !thumb || !table) return;
+    const maxThumbLeft = track.clientWidth - thumb.clientWidth;
+    const maxScrollLeft = table.scrollWidth - table.clientWidth;
+    const ratio = maxScrollLeft > 0 ? Math.min(1, Math.max(0, table.scrollLeft / maxScrollLeft)) : 0;
+    thumb.style.transform = `translateX(${ratio * Math.max(0, maxThumbLeft)}px)`;
+  };
+  useLayoutEffect(() => { updateTopThumb(); });
+
+  const startTopDrag = (e) => {
+    e.preventDefault();
+    const track = topTrackRef.current;
+    const thumb = topThumbRef.current;
+    const table = tableScrollRef.current;
+    if (!track || !thumb || !table) return;
+    const trackRect = track.getBoundingClientRect();
+    const thumbWidth = thumb.clientWidth;
+    const maxThumbLeft = trackRect.width - thumbWidth;
+    const maxScrollLeft = table.scrollWidth - table.clientWidth;
+    if (maxThumbLeft <= 0 || maxScrollLeft <= 0) return;
+
+    const moveTo = (clientX) => {
+      const x = clientX - trackRect.left - thumbWidth / 2;
+      const clamped = Math.min(Math.max(x, 0), maxThumbLeft);
+      table.scrollLeft = (clamped / maxThumbLeft) * maxScrollLeft;
+    };
+    moveTo(e.clientX);
+
+    const onMove = (ev) => moveTo(ev.clientX);
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
 
   const labels = {
     HDNT: 'Hợp Đồng Nguyên Tắc', DDH: 'Đơn Đặt Hàng', BBBG: 'Biên Bản Bàn Giao',
@@ -298,6 +364,20 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
       )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {rows.length > 0 && needsHScroll && (
+          <div
+            ref={topTrackRef}
+            onMouseDown={startTopDrag}
+            className="relative border-b border-gray-200 bg-gray-100 cursor-pointer"
+            style={{ height: 14 }}
+          >
+            <div
+              ref={topThumbRef}
+              className="absolute top-0 left-0 h-full rounded-lg hover:opacity-80"
+              style={{ width: `${topThumbPct}%`, background: '#93c5fd', border: '3px solid #f3f4f6', boxSizing: 'border-box' }}
+            />
+          </div>
+        )}
         {rows.length === 0 ? (
           <div className="p-12 text-center text-gray-400">
             {loading ? '⏳ Đang tải...' : hasFilter ? `Không tìm thấy ${labels[type]} phù hợp với bộ lọc` : `Chưa có ${labels[type]} nào`}
@@ -306,9 +386,10 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
           // Bảng đã lên tới 12 cột (thêm STK) — dễ tràn khỏi màn hình hẹp. Bọc trong 1 khung
           // overflow-x-auto (chỉ 1 scrollbar thật duy nhất, không đồng bộ 2 thanh nên không bị giật
           // như InvoiceGoodsPage từng gặp) + whitespace-nowrap ở các cột ngắn để không bị vỡ dòng
-          // lung tung khi cuộn ngang.
-          <div className="overflow-x-auto wide-table-scroll">
-          <table className="w-full text-sm">
+          // lung tung khi cuộn ngang. Thanh cuộn giả ở trên (khối trên) chỉ đọc/ghi scrollLeft của
+          // khung này, không phải scrollbar thật thứ 2.
+          <div ref={tableScrollRef} onScroll={updateTopThumb} className="overflow-x-auto wide-table-scroll">
+          <table ref={tableElRef} className="w-full text-sm">
             <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase">
               <th className="px-4 py-3 w-8">
                 <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} className="cursor-pointer" />
