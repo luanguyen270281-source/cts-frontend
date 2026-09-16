@@ -54,6 +54,14 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
 
   const customerLabel = (c) => c.customerSnapshot?.companyName || customers[c.customerId]?.companyName || c.customerName || c.customerId;
   const sellerLabel = (c) => c.sellerSnapshot?.companyName || sellers[c.sellerId]?.companyName || c.sellerId || '';
+  // Chỉ lấy phần tên viết tắt của ngân hàng (trước dấu ":") — dữ liệu cũ có ô "Ngân hàng" bị gõ nhầm
+  // thành "Techcombank: Ngân hàng TMCP Kỹ Thương Việt Nam" thay vì chỉ tên ngắn gọn.
+  const sellerBankLabel = (c) => {
+    const s = c.sellerSnapshot || sellers[c.sellerId] || {};
+    if (!s.bankAccount) return '';
+    const shortBank = s.bankName ? s.bankName.split(':')[0].trim() : '';
+    return shortBank ? `${s.bankAccount} (${shortBank})` : s.bankAccount;
+  };
 
   const sellerOptions = useMemo(
     () => Object.entries(sellers).map(([id, s]) => ({ id, name: s.companyName })).sort((a, b) => a.name.localeCompare(b.name)),
@@ -211,6 +219,7 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
           'Bên bán': sellerLabel(c),
           'Ngày': c.date || '',
         };
+        row['STK Bên bán'] = sellerBankLabel(c);
         if (showInvoiceNo) row['Số hóa đơn'] = c.invoiceNo || '';
         if (showTotal) row['Tổng tiền'] = c.total || 0;
         row['Sale'] = sale?.name || c._maSale || '';
@@ -302,6 +311,7 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
               <th className="text-left px-5 py-3">Số hợp đồng</th>
               <th className="text-left px-5 py-3">Khách hàng</th>
               <th className="text-left px-5 py-3">Bên bán</th>
+              <th className="text-left px-5 py-3">STK</th>
               {showInvoiceNo && <th className="text-left px-5 py-3">Số hóa đơn</th>}
               <th className="text-left px-5 py-3">Ngày</th>
               {showTotal && <th className="text-left px-5 py-3">Tổng tiền</th>}
@@ -324,6 +334,7 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
                     <td className="px-5 py-3 font-mono font-bold text-blue-700">{c.contractId}</td>
                     <td className="px-5 py-3 text-gray-700">{customerLabel(c)}</td>
                     <td className="px-5 py-3 text-gray-500 text-xs">{sellerLabel(c)}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs font-mono">{sellerBankLabel(c) || '–'}</td>
                     {showInvoiceNo && <td className="px-5 py-3 font-mono text-gray-500 text-xs">{c.invoiceNo || '–'}</td>}
                     <td className="px-5 py-3 text-gray-500">{c.date}</td>
                     {showTotal && <td className="px-5 py-3 text-gray-700 font-medium">{total ? fmtNum(total) + ' đ' : '–'}</td>}
