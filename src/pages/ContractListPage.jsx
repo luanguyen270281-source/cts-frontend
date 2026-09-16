@@ -51,15 +51,29 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
   const [tableRenderWidth, setTableRenderWidth] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
 
+  // Đóng băng (sticky) cột checkbox + "Số hợp đồng" khi cuộn ngang, để luôn biết đang xem hợp đồng
+  // nào và vẫn chọn được dòng dù đã cuộn sang phải. Đo width thật của cột checkbox bằng
+  // ResizeObserver (không đoán cứng theo class Tailwind) để cột "Số hợp đồng" luôn ghép khít ngay
+  // sau nó, kể cả khi CSS/font thay đổi độ rộng thật của checkbox.
+  const checkboxThRef = useRef(null);
+  const [checkboxColWidth, setCheckboxColWidth] = useState(0);
+  const contractIdLeft = checkboxColWidth;
+
   useLayoutEffect(() => {
     const tableEl = tableElRef.current;
     const containerEl = tableScrollRef.current;
+    const checkboxEl = checkboxThRef.current;
     if (!tableEl || !containerEl || typeof ResizeObserver === 'undefined') return;
     const roTable = new ResizeObserver(([entry]) => setTableRenderWidth(entry.contentRect.width));
     const roContainer = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width));
     roTable.observe(tableEl);
     roContainer.observe(containerEl);
-    return () => { roTable.disconnect(); roContainer.disconnect(); };
+    let roCheckbox;
+    if (checkboxEl) {
+      roCheckbox = new ResizeObserver(([entry]) => setCheckboxColWidth(entry.borderBoxSize?.[0]?.inlineSize ?? entry.contentRect.width));
+      roCheckbox.observe(checkboxEl);
+    }
+    return () => { roTable.disconnect(); roContainer.disconnect(); roCheckbox?.disconnect(); };
   }, [rows.length]);
 
   // Chỉ hiện thanh cuộn giả ở trên khi THỰC SỰ cần cuộn ngang (bảng rộng hơn khung nhìn).
@@ -391,10 +405,10 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
           <div ref={tableScrollRef} onScroll={updateTopThumb} className="overflow-x-auto wide-table-scroll">
           <table ref={tableElRef} className="w-full text-sm">
             <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase">
-              <th className="px-4 py-3 w-8">
+              <th ref={checkboxThRef} className="sticky left-0 z-10 bg-gray-50 px-4 py-3 w-8">
                 <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} className="cursor-pointer" />
               </th>
-              <th className="text-left px-5 py-3 whitespace-nowrap">Số hợp đồng</th>
+              <th className="sticky z-10 bg-gray-50 text-left px-5 py-3 whitespace-nowrap" style={{ left: contractIdLeft }}>Số hợp đồng</th>
               <th className="text-left px-5 py-3 whitespace-nowrap">Khách hàng</th>
               <th className="text-left px-5 py-3 whitespace-nowrap">Bên bán</th>
               <th className="text-left px-5 py-3 whitespace-nowrap">STK</th>
@@ -413,11 +427,15 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
               {rows.map(c => {
                 const total = c.total;
                 return (
-                  <tr key={c._dbId || c.contractId} className="border-t border-gray-100 hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                  <tr key={c._dbId || c.contractId} className="group/row border-t border-gray-100 hover:bg-gray-50">
+                    <td className="sticky left-0 z-10 bg-white group-hover/row:bg-gray-50 px-4 py-3">
                       <input type="checkbox" checked={selectedIds.has(c.contractId)} onChange={() => toggleOne(c.contractId)} className="cursor-pointer" />
                     </td>
-                    <td className="px-5 py-3 font-mono font-bold text-blue-700 whitespace-nowrap">{c.contractId}</td>
+                    <td className="sticky z-10 bg-white group-hover/row:bg-gray-50 px-5 py-3 font-mono font-bold text-blue-700 whitespace-nowrap relative" style={{ left: contractIdLeft }}>
+                      {c.contractId}
+                      {/* Div nền thay vì border-right — border trên ô sticky bị lỗi trình duyệt, mất khi cuộn ngang (đã gặp ở InvoiceGoodsPage). */}
+                      {needsHScroll && <div className="absolute top-0 right-0 h-full w-0.5 bg-gray-300" />}
+                    </td>
                     <td className="px-5 py-3 text-gray-700 whitespace-nowrap">{customerLabel(c)}</td>
                     <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">{sellerLabel(c)}</td>
                     <td className="px-5 py-3 text-gray-500 text-xs font-mono whitespace-nowrap">{sellerBankLabel(c) || '–'}</td>
