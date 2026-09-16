@@ -664,6 +664,13 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
           </div>
         )}
 
+        {/* rows.length === 0 đã tự hiện "Đang tải..." bên trong bảng — nhưng khi đổi filter/trang
+            lúc bảng đang có sẵn dữ liệu cũ thì rows.length > 0 nên nhánh đó không chạy, khiến người
+            dùng không thấy phản hồi gì trong lúc chờ request mới. Thêm banner này để bù lại. */}
+        {loading && rows.length > 0 && (
+          <div className="px-1 pb-2 text-sm text-gray-500">⏳ Đang tải danh sách hóa đơn...</div>
+        )}
+
         {/* Bảng nhiều cột hơn bề ngang màn hình — overflow-x-auto cho cuộn ngang, kèm class
             "wide-table-scroll" (định nghĩa ở index.css) để thanh cuộn ngang hiện rõ ràng, không bị
             chìm/khó thấy như thanh cuộn mặc định của trình duyệt, giúp người dùng biết còn cột ẩn bên phải. */}
