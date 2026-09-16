@@ -303,23 +303,28 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
             {loading ? '⏳ Đang tải...' : hasFilter ? `Không tìm thấy ${labels[type]} phù hợp với bộ lọc` : `Chưa có ${labels[type]} nào`}
           </div>
         ) : (
+          // Bảng đã lên tới 12 cột (thêm STK) — dễ tràn khỏi màn hình hẹp. Bọc trong 1 khung
+          // overflow-x-auto (chỉ 1 scrollbar thật duy nhất, không đồng bộ 2 thanh nên không bị giật
+          // như InvoiceGoodsPage từng gặp) + whitespace-nowrap ở các cột ngắn để không bị vỡ dòng
+          // lung tung khi cuộn ngang.
+          <div className="overflow-x-auto wide-table-scroll">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase">
               <th className="px-4 py-3 w-8">
                 <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} className="cursor-pointer" />
               </th>
-              <th className="text-left px-5 py-3">Số hợp đồng</th>
-              <th className="text-left px-5 py-3">Khách hàng</th>
-              <th className="text-left px-5 py-3">Bên bán</th>
-              <th className="text-left px-5 py-3">STK</th>
-              {showInvoiceNo && <th className="text-left px-5 py-3">Số hóa đơn</th>}
-              <th className="text-left px-5 py-3">Ngày</th>
-              {showTotal && <th className="text-left px-5 py-3">Tổng tiền</th>}
-              <th className="text-left px-5 py-3">Sale</th>
-              <th className="text-left px-5 py-3">Phòng ban</th>
+              <th className="text-left px-5 py-3 whitespace-nowrap">Số hợp đồng</th>
+              <th className="text-left px-5 py-3 whitespace-nowrap">Khách hàng</th>
+              <th className="text-left px-5 py-3 whitespace-nowrap">Bên bán</th>
+              <th className="text-left px-5 py-3 whitespace-nowrap">STK</th>
+              {showInvoiceNo && <th className="text-left px-5 py-3 whitespace-nowrap">Số hóa đơn</th>}
+              <th className="text-left px-5 py-3 whitespace-nowrap">Ngày</th>
+              {showTotal && <th className="text-left px-5 py-3 whitespace-nowrap">Tổng tiền</th>}
+              <th className="text-left px-5 py-3 whitespace-nowrap">Sale</th>
+              <th className="text-left px-5 py-3 whitespace-nowrap">Phòng ban</th>
               <th className="text-left px-5 py-3 whitespace-nowrap">Trạng thái</th>
               {showAccountingReceived && (
-                <th className="text-center px-3 py-3 w-28">Kế toán nhận<br />Hợp đồng</th>
+                <th className="text-center px-3 py-3 w-28 whitespace-nowrap">Kế toán nhận<br />Hợp đồng</th>
               )}
               <th className="px-5 py-3"></th>
             </tr></thead>
@@ -331,14 +336,14 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
                     <td className="px-4 py-3">
                       <input type="checkbox" checked={selectedIds.has(c.contractId)} onChange={() => toggleOne(c.contractId)} className="cursor-pointer" />
                     </td>
-                    <td className="px-5 py-3 font-mono font-bold text-blue-700">{c.contractId}</td>
-                    <td className="px-5 py-3 text-gray-700">{customerLabel(c)}</td>
-                    <td className="px-5 py-3 text-gray-500 text-xs">{sellerLabel(c)}</td>
-                    <td className="px-5 py-3 text-gray-500 text-xs font-mono">{sellerBankLabel(c) || '–'}</td>
-                    {showInvoiceNo && <td className="px-5 py-3 font-mono text-gray-500 text-xs">{c.invoiceNo || '–'}</td>}
-                    <td className="px-5 py-3 text-gray-500">{c.date}</td>
-                    {showTotal && <td className="px-5 py-3 text-gray-700 font-medium">{total ? fmtNum(total) + ' đ' : '–'}</td>}
-                    <td className="px-5 py-3 text-gray-600 text-xs">
+                    <td className="px-5 py-3 font-mono font-bold text-blue-700 whitespace-nowrap">{c.contractId}</td>
+                    <td className="px-5 py-3 text-gray-700 whitespace-nowrap">{customerLabel(c)}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">{sellerLabel(c)}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs font-mono whitespace-nowrap">{sellerBankLabel(c) || '–'}</td>
+                    {showInvoiceNo && <td className="px-5 py-3 font-mono text-gray-500 text-xs whitespace-nowrap">{c.invoiceNo || '–'}</td>}
+                    <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{c.date}</td>
+                    {showTotal && <td className="px-5 py-3 text-gray-700 font-medium whitespace-nowrap">{total ? fmtNum(total) + ' đ' : '–'}</td>}
+                    <td className="px-5 py-3 text-gray-600 text-xs whitespace-nowrap">
                       {saleProfiles.length > 0 ? (
                         assigningId === c.contractId ? (
                           <SaleSearchDropdown
@@ -361,7 +366,7 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
                         (saleMap[c._createdBy] || saleMap[c._maSale])?.name || c._maSale || '–'
                       )}
                     </td>
-                    <td className="px-5 py-3 text-gray-500 text-xs">{(saleMap[c._createdBy] || saleMap[c._maSale])?.deptName || '–'}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">{(saleMap[c._createdBy] || saleMap[c._maSale])?.deptName || '–'}</td>
                     <td className="px-5 py-3 whitespace-nowrap"><Badge color={c.status === 'Hoàn thành' ? 'green' : 'blue'}>{c.status}</Badge></td>
                     {showAccountingReceived && (
                       <td className="px-5 py-3 text-center">
@@ -380,6 +385,7 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
               })}
             </tbody>
           </table>
+          </div>
         )}
         <Pagination page={page} maxPage={maxPage} onChange={loadPage} disabled={loading} />
       </div>
