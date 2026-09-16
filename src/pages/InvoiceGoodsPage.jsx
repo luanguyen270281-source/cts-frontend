@@ -664,13 +664,6 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
           </div>
         )}
 
-        {/* rows.length === 0 đã tự hiện "Đang tải..." bên trong bảng — nhưng khi đổi filter/trang
-            lúc bảng đang có sẵn dữ liệu cũ thì rows.length > 0 nên nhánh đó không chạy, khiến người
-            dùng không thấy phản hồi gì trong lúc chờ request mới. Thêm banner này để bù lại. */}
-        {loading && rows.length > 0 && (
-          <div className="px-1 pb-2 text-sm text-gray-500">⏳ Đang tải danh sách hóa đơn...</div>
-        )}
-
         {/* Bảng nhiều cột hơn bề ngang màn hình — overflow-x-auto cho cuộn ngang, kèm class
             "wide-table-scroll" (định nghĩa ở index.css) để thanh cuộn ngang hiện rõ ràng, không bị
             chìm/khó thấy như thanh cuộn mặc định của trình duyệt, giúp người dùng biết còn cột ẩn bên phải. */}
@@ -679,9 +672,13 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
           onScroll={updateTopThumb}
           className="wide-table-scroll overflow-x-auto"
         >
-        {rows.length === 0 ? (
+        {loading ? (
+          // Đổi filter/trang/tìm kiếm lúc bảng đang có sẵn dữ liệu cũ cũng hiện y hệt lúc mới vào
+          // trang (thay cả bảng bằng dòng chữ này), thay vì giữ nguyên dữ liệu cũ không phản hồi gì.
+          <div className="p-10 text-center text-gray-400">⏳ Đang tải danh sách hóa đơn...</div>
+        ) : rows.length === 0 ? (
           <div className="p-10 text-center text-gray-400">
-            {loading ? '⏳ Đang tải danh sách hóa đơn...' : hasActiveFilters ? 'Không tìm thấy hóa đơn phù hợp.' : 'Chưa có hóa đơn nào. Bấm "Nhập Excel" để bắt đầu.'}
+            {hasActiveFilters ? 'Không tìm thấy hóa đơn phù hợp.' : 'Chưa có hóa đơn nào. Bấm "Nhập Excel" để bắt đầu.'}
           </div>
         ) : (
           // width: '100%' + minWidth: tổng độ rộng cột — màn rộng thì bảng giãn lấp đầy khoảng trống
