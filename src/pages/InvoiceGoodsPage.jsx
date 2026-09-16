@@ -255,6 +255,12 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
       }
     } catch (e) {
       console.error('Không tải được danh sách hóa đơn:', e.message);
+      // Bộ lọc "Sale phụ trách" (và các trường hợp lọc nặng khác) có thể khiến truy vấn bị timeout
+      // ở server — nếu im lặng bỏ qua, bảng vẫn hiển thị dữ liệu cũ khiến tưởng nhầm là filter
+      // không hoạt động. Báo lỗi rõ để người dùng biết cần thử lại/thu hẹp bộ lọc.
+      if (myRequestId === requestIdRef.current) {
+        alert('Không tải được danh sách hóa đơn: ' + e.message + '\n\nDanh sách đang hiển thị có thể không khớp với bộ lọc hiện tại. Vui lòng thử lại hoặc thu hẹp thêm bộ lọc (VD: chọn thêm Công ty bán / khoảng ngày).');
+      }
     } finally {
       if (myRequestId === requestIdRef.current) setLoading(false);
     }
