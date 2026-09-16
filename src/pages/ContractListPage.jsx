@@ -408,7 +408,10 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
               <th ref={checkboxThRef} className="sticky left-0 z-10 bg-gray-50 px-4 py-3 w-8">
                 <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} className="cursor-pointer" />
               </th>
-              <th className="sticky z-10 bg-gray-50 text-left px-5 py-3 whitespace-nowrap" style={{ left: contractIdLeft }}>Số hợp đồng</th>
+              <th className="sticky z-10 bg-gray-50 text-left px-5 py-3 whitespace-nowrap relative" style={{ left: contractIdLeft }}>
+                Số hợp đồng
+                {needsHScroll && <div className="absolute top-0 right-0 h-full w-0.5 bg-gray-300" />}
+              </th>
               <th className="text-left px-5 py-3 whitespace-nowrap">Khách hàng</th>
               <th className="text-left px-5 py-3 whitespace-nowrap">Bên bán</th>
               <th className="text-left px-5 py-3 whitespace-nowrap">STK</th>
