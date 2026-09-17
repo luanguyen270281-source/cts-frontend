@@ -9,7 +9,7 @@ import { GoodsTable } from '../components/GoodsTable';
 import { InvoiceGoodsPicker } from '../components/InvoiceGoodsPicker';
 import { normalizeText } from '../utils/textNormalize';
 import { CustomerForm } from './CustomerForm';
-import { DDHPreview } from '../previews/DDHPreview';
+import { DDHPreview, DEFAULT_PAYMENT_TERMS_DDH } from '../previews/DDHPreview';
 import { buildContractId, calcTotals, fmtNum, resolveSaleCode } from '../helpers';
 import { api } from '../lib/api';
 import { pdfFirstPageToImage } from '../lib/pdfToImage';
@@ -31,6 +31,7 @@ export const CreateDDH = ({ sellers, customers, onSave, setPage, editData, isAdm
   const [goods, setGoods] = useState(editData?.goods || []);
   const [vatInvoiceImage, setVatInvoiceImage] = useState(editData?.vatInvoiceImage || null); // { data, mediaType } | null
   const [hdntId, setHdntId] = useState(editData?.relatedContracts?.hdnt || '');
+  const [paymentTerms, setPaymentTerms] = useState(editData?.paymentTerms || DEFAULT_PAYMENT_TERMS_DDH);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [aiMismatch, setAiMismatch] = useState(null); // { aiTotal, printedTotal } nếu lệch
@@ -224,7 +225,7 @@ export const CreateDDH = ({ sellers, customers, onSave, setPage, editData, isAdm
     customerName: customer.companyName, date, status: editData?.status || 'Hiệu lực', goods,
     customerSnapshot: customer, sellerSnapshot: seller,
     vatInvoiceImage, invoiceNo: sourceInvoiceNo || null,
-    relatedContracts: { hdnt: hdntId }
+    relatedContracts: { hdnt: hdntId }, paymentTerms,
   } : null;
 
   const save = async () => {
@@ -398,7 +399,7 @@ export const CreateDDH = ({ sellers, customers, onSave, setPage, editData, isAdm
 
       {showPreview && preview && (
         <div className="bg-white rounded-xl shadow-sm border-2 border-dashed border-gray-300 p-8">
-          <DDHPreview c={preview} seller={seller} customer={customer} />
+          <DDHPreview c={preview} seller={seller} customer={customer} onChangePaymentTerms={setPaymentTerms} />
         </div>
       )}
     </div>

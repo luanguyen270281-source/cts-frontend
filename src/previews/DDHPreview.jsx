@@ -2,8 +2,14 @@
 import { SignatureBlock } from './SignatureBlock';
 import { fmtDate, calcTotals, numberToWords } from '../helpers';
 import { GoodsTablePrint } from './GoodsTablePrint';
+import { EditableClause } from './EditableClause';
 
-export const DDHPreview = ({ c, seller, customer }) => {
+export const DEFAULT_PAYMENT_TERMS_DDH =
+`– Chuyển khoản hoặc tiền mặt 100% theo thông báo giao hàng hoặc theo biên bản bàn giao, nghiệm thu và quyết toán giá trị thực tế vào tài khoản của bên B.
+– Chứng từ thanh toán: Đơn đặt hàng / biên bản bàn giao, nghiệm thu và quyết toán giá trị thực tế.
+– Thời gian thanh toán: Thanh toán 100% sau khi đặt hàng.`;
+
+export const DDHPreview = ({ c, seller, customer, onChangePaymentTerms }) => {
   // BÊN A = Bên đặt hàng (Khách hàng) | BÊN B = Bên nhận đơn / bán (CTS)
   const ben_A = customer || {}, ben_B = seller || {};
   // Giá trị lúc đặt hàng là TẠM TÍNH, CHƯA gồm thuế (VAT tính sau ở Biên Bản Bàn Giao khi quyết toán
@@ -57,10 +63,12 @@ export const DDHPreview = ({ c, seller, customer }) => {
       </div>
 
       <div className="mb-3 text-sm">
-        <div className="font-bold uppercase">Điều 3: Thời hạn và phương thức thanh toán</div>
-        <div style={{ textAlign: 'justify' }}>– Chuyển khoản hoặc tiền mặt 100% theo thông báo giao hàng hoặc theo biên bản bàn giao, nghiệm thu và quyết toán giá trị thực tế vào tài khoản của bên B.</div>
-        <div>– Chứng từ thanh toán: Đơn đặt hàng / biên bản bàn giao, nghiệm thu và quyết toán giá trị thực tế.</div>
-        <div>– Thời gian thanh toán: Thanh toán 100% sau khi đặt hàng.</div>
+        <EditableClause
+          heading="Điều 3: Thời hạn và phương thức thanh toán"
+          value={c.paymentTerms || DEFAULT_PAYMENT_TERMS_DDH}
+          onSave={onChangePaymentTerms}
+          style={{ textAlign: 'justify' }}
+        />
       </div>
 
       <div className="mb-3 text-sm">

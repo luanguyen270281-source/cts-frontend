@@ -248,6 +248,18 @@ export const api = {
     return data;
   },
 
+  // Cập nhật nhanh 1-vài field nhẹ trong data jsonb (VD: sửa điều khoản ngay ở màn Xem) — không đi qua
+  // upsertContract vì hàm đó thấy contract.vatInvoiceImage (base64 tải lại từ getContractFull) sẽ tưởng
+  // là ảnh mới rồi upload lại lên Storage mỗi lần lưu, rác dần Storage với ảnh y hệt nhau.
+  async patchContractData(dbId, patch) {
+    const { data: row, error: readError } = await supabase.from('contracts').select('data').eq('id', dbId).single();
+    if (readError) throw new Error(readError.message);
+    const { error } = await supabase.from('contracts')
+      .update({ data: { ...row.data, ...patch }, updated_at: new Date().toISOString() })
+      .eq('id', dbId);
+    if (error) throw new Error(error.message);
+  },
+
   async deleteContractRow(dbId) {
     // Dọn ảnh trong Storage trước khi xóa row (nếu đã migrate) — không throw nếu lỗi, chỉ log,
     // để 1 lỗi Storage không chặn được việc xóa hợp đồng.

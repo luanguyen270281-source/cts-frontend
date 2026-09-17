@@ -58,7 +58,7 @@ const PRINT_STYLE = `
   .no-print { display: none !important; }
 `;
 
-export const ContractViewer = ({ contract, sellers, customers, saleMap = {}, saleProfiles = [], isAdmin = false, onAssign, onClose, onDelete, onEdit }) => {
+export const ContractViewer = ({ contract, sellers, customers, saleMap = {}, saleProfiles = [], isAdmin = false, onAssign, onClose, onDelete, onEdit, onUpdatePaymentTerms }) => {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [wordLoading, setWordLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -212,7 +212,8 @@ export const ContractViewer = ({ contract, sellers, customers, saleMap = {}, sal
           </div>
         )}
         <div className="p-10" id="contract-print-zone">
-          <PreviewComp c={contract} seller={seller} customer={customer} />
+          <PreviewComp c={contract} seller={seller} customer={customer}
+            onChangePaymentTerms={onUpdatePaymentTerms ? (text) => onUpdatePaymentTerms(contract, text) : undefined} />
         </div>
       </div>
     </div>

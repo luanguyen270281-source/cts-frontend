@@ -543,6 +543,14 @@ export default function App() {
     }
   };
 
+  // Sửa nhanh 1 field nhẹ (VD: điều khoản thanh toán) ngay ở màn Xem, không cần mở form Sửa đầy đủ.
+  const updateContractPaymentTerms = async (contract, paymentTerms) => {
+    if (!contract._dbId) return;
+    await api.patchContractData(contract._dbId, { paymentTerms });
+    setViewContract(v => (v && v._dbId === contract._dbId) ? { ...v, paymentTerms } : v);
+    setContractsVersion(v => v + 1);
+  };
+
   // Admin giao hợp đồng cho sale khác — chỉ cập nhật ma_sale, giữ nguyên người tạo.
   // contract: object đầy đủ (có _dbId), lấy từ dòng trong ContractListPage/ContractViewer.
   const assignContract = async (contract, newMaSale) => {
@@ -757,6 +765,7 @@ export default function App() {
             onClose={closeContractViewer}
             onDelete={deleteContract}
             onEdit={handleEditContract}
+            onUpdatePaymentTerms={updateContractPaymentTerms}
           />
           </Suspense>
         </ErrorBoundary>
