@@ -2,8 +2,13 @@
 import { SignatureBlock } from './SignatureBlock';
 import { fmtDate } from '../helpers';
 import { ServiceFeeTable } from './ServiceFeeTable';
+import { EditableClause } from './EditableClause';
 
-export const DDHVCPreview = ({ c, seller, customer }) => {
+export const DEFAULT_PAYMENT_TERMS_DDH_VC =
+`– Chuyển khoản 100% giá trị dịch vụ thực tế vào tài khoản của bên B dựa theo thông báo thanh toán được bên B gửi cho bên A theo hình thức tin nhắn/email/điện thoại.
+– Chứng từ thanh toán: Đơn đặt dịch vụ / biên bản bàn giao, nghiệm thu và quyết toán giá trị thực tế.`;
+
+export const DDHVCPreview = ({ c, seller, customer, onChangePaymentTerms }) => {
   // BÊN A = Bên đặt dịch vụ (Khách hàng) | BÊN B = Bên nhận dịch vụ (CTS)
   const ben_A = customer || {}, ben_B = seller || {};
   return (
@@ -53,9 +58,12 @@ export const DDHVCPreview = ({ c, seller, customer }) => {
       </div>
 
       <div className="mb-3 text-sm">
-        <div className="font-bold uppercase">Điều 3: Thời hạn và phương thức thanh toán</div>
-        <div style={{ textAlign: 'justify' }}>– Chuyển khoản 100% giá trị dịch vụ thực tế vào tài khoản của bên B dựa theo thông báo thanh toán được bên B gửi cho bên A theo hình thức tin nhắn/email/điện thoại.</div>
-        <div>– Chứng từ thanh toán: Đơn đặt dịch vụ / biên bản bàn giao, nghiệm thu và quyết toán giá trị thực tế.</div>
+        <EditableClause
+          heading="Điều 3: Thời hạn và phương thức thanh toán"
+          value={c.paymentTerms || DEFAULT_PAYMENT_TERMS_DDH_VC}
+          onSave={onChangePaymentTerms}
+          style={{ textAlign: 'justify' }}
+        />
       </div>
 
       <div className="mb-3 text-sm">

@@ -8,7 +8,7 @@ import { PartyInfoCard } from '../components/PartyInfoCard';
 import { ContractIdPreview } from '../components/ContractIdPreview';
 import { GoodsTableUSD } from '../components/GoodsTableUSD';
 import { ServiceFeeTable } from '../previews/ServiceFeeTable';
-import { DDHUTPreview } from '../previews/DDHUTPreview';
+import { DDHUTPreview, DEFAULT_PAYMENT_TERMS_DDH_UT } from '../previews/DDHUTPreview';
 import { buildContractId, calcUSDTotal, fmtNum } from '../helpers';
 import { api } from '../lib/api';
 import { buildCustomerOptions, parseCustomerOptionValue, encodeCustomerOptionValue } from '../utils/customerOptions';
@@ -26,6 +26,7 @@ export const CreateDDHUT = ({ sellers, customers, onSave, setPage, editData, isA
   const [feeAmount, setFeeAmount] = useState(editData?.goods?.[0]?.donGia ?? '');
   const [vatRate, setVatRate] = useState(editData?.goods?.[0]?.vatRate ?? 8);
   const [hdntUtId, setHdntUtId] = useState(editData?.relatedContracts?.hdnt_ut || '');
+  const [paymentTerms, setPaymentTerms] = useState(editData?.paymentTerms || DEFAULT_PAYMENT_TERMS_DDH_UT);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [aiMismatch, setAiMismatch] = useState(null); // { aiTotal, printedTotal } nếu lệch
@@ -118,7 +119,7 @@ export const CreateDDHUT = ({ sellers, customers, onSave, setPage, editData, isA
     customerName: customer.companyName, date, status: editData?.status || 'Hiệu lực',
     customerSnapshot: customer, sellerSnapshot: seller,
     goodsUSD, exchangeRate, goods,
-    relatedContracts: { hdnt_ut: hdntUtId }
+    relatedContracts: { hdnt_ut: hdntUtId }, paymentTerms,
   } : null;
 
   const save = async () => {
@@ -262,7 +263,7 @@ export const CreateDDHUT = ({ sellers, customers, onSave, setPage, editData, isA
 
       {showPreview && preview && (
         <div className="bg-white rounded-xl shadow-sm border-2 border-dashed border-gray-300 p-8">
-          <DDHUTPreview c={preview} seller={seller} customer={customer} />
+          <DDHUTPreview c={preview} seller={seller} customer={customer} onChangePaymentTerms={setPaymentTerms} />
         </div>
       )}
     </div>

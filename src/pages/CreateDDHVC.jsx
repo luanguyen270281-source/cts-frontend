@@ -7,7 +7,7 @@ import { Alert } from '../components/Alert';
 import { PartyInfoCard } from '../components/PartyInfoCard';
 import { ContractIdPreview } from '../components/ContractIdPreview';
 import { ServiceFeeTable } from '../previews/ServiceFeeTable';
-import { DDHVCPreview } from '../previews/DDHVCPreview';
+import { DDHVCPreview, DEFAULT_PAYMENT_TERMS_DDH_VC } from '../previews/DDHVCPreview';
 import { buildContractId } from '../helpers';
 import { buildCustomerOptions, parseCustomerOptionValue, encodeCustomerOptionValue } from '../utils/customerOptions';
 import { api } from '../lib/api';
@@ -23,6 +23,7 @@ export const CreateDDHVC = ({ sellers, customers, onSave, setPage, editData, isA
   const [feeAmount, setFeeAmount] = useState(editData?.goods?.[0]?.donGia ?? '');
   const [vatRate, setVatRate] = useState(editData?.goods?.[0]?.vatRate ?? 8);
   const [hdntVcId, setHdntVcId] = useState(editData?.relatedContracts?.hdnt_vc || '');
+  const [paymentTerms, setPaymentTerms] = useState(editData?.paymentTerms || DEFAULT_PAYMENT_TERMS_DDH_VC);
   const [showPreview, setShowPreview] = useState(false);
   // null = số hợp đồng tự sinh theo thông tin bên dưới; nếu khác null là người dùng đã tự sửa
   const [idOverride, setIdOverride] = useState(editData?.contractId ?? null);
@@ -58,7 +59,7 @@ export const CreateDDHVC = ({ sellers, customers, onSave, setPage, editData, isA
     contractId, type: 'DDH_VC', customerId, sellerId, saleCode, stt,
     customerName: customer.companyName, date, status: editData?.status || 'Hiệu lực', goods,
     customerSnapshot: customer, sellerSnapshot: seller,
-    relatedContracts: { hdnt_vc: hdntVcId }
+    relatedContracts: { hdnt_vc: hdntVcId }, paymentTerms,
   } : null;
 
   const save = async () => {
@@ -182,7 +183,7 @@ export const CreateDDHVC = ({ sellers, customers, onSave, setPage, editData, isA
 
       {showPreview && preview && (
         <div className="bg-white rounded-xl shadow-sm border-2 border-dashed border-gray-300 p-8">
-          <DDHVCPreview c={preview} seller={seller} customer={customer} />
+          <DDHVCPreview c={preview} seller={seller} customer={customer} onChangePaymentTerms={setPaymentTerms} />
         </div>
       )}
     </div>

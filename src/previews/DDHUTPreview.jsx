@@ -3,8 +3,17 @@ import { SignatureBlock } from './SignatureBlock';
 import { fmtDate } from '../helpers';
 import { GoodsTableUSDPrint } from './GoodsTableUSDPrint';
 import { ServiceFeeTable } from './ServiceFeeTable';
+import { EditableClause } from './EditableClause';
 
-export const DDHUTPreview = ({ c, seller, customer }) => {
+export const DEFAULT_PAYMENT_TERMS_DDH_UT =
+`– Lần 1 – Giá trị tiền hàng: Sau khi Bên A gửi đơn đặt dịch vụ ủy thác nhập khẩu cho Bên B, Bên A có trách nhiệm thanh toán 100% giá trị tiền hàng bằng đồng Việt Nam theo tỷ giá thỏa thuận. Bên B sẽ thanh toán tiền cho bên bán hàng của Bên A (bên xuất khẩu).
+– Lần 2 – Bên A thanh toán 100% các loại thuế, phí dịch vụ cho Bên B, bao gồm các loại thuế và nghĩa vụ của doanh nghiệp đối với lô hàng nhập khẩu mà Bên B đã thanh toán trước để thông quan theo số tiền thực tế.
+– Giá trị dịch vụ dựa theo biên bản bàn giao, nghiệm thu và quyết toán giá trị thực tế. Bên B xuất hóa đơn cho Bên A khi bàn giao hàng hóa và dịch vụ.
+    + Hóa đơn giá trị tiền hàng tại điểm 1.1 quy đổi theo giá trị tiền Việt Nam Đồng trên tờ khai hải quan và các loại thuế, phí thực nộp thay cho Bên A theo tờ khai hải quan nhập khẩu.
+    + Hóa đơn phí dịch vụ ủy thác trọn gói: Quy định tại điểm 1.2 theo giá trị nghiệm thu và quyết toán thực tế đã bao gồm thuế GTGT.
+– Chứng từ thanh toán: Đơn đặt dịch vụ / biên bản bàn giao, nghiệm thu và quyết toán giá trị thực tế.`;
+
+export const DDHUTPreview = ({ c, seller, customer, onChangePaymentTerms }) => {
   // BÊN A = Bên ủy thác (Khách hàng) | BÊN B = Bên nhận ủy thác (CTS)
   const ben_A = customer || {}, ben_B = seller || {};
   return (
