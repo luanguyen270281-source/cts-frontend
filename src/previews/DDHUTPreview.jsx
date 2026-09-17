@@ -69,13 +69,12 @@ export const DDHUTPreview = ({ c, seller, customer, onChangePaymentTerms }) => {
       </div>
 
       <div className="mb-3 text-sm">
-        <div className="font-bold uppercase">Điều 3: Thời hạn và phương thức thanh toán</div>
-        <div style={{ textAlign: 'justify' }}>– Lần 1 – Giá trị tiền hàng: Sau khi Bên A gửi đơn đặt dịch vụ ủy thác nhập khẩu cho Bên B, Bên A có trách nhiệm thanh toán 100% giá trị tiền hàng bằng đồng Việt Nam theo tỷ giá thỏa thuận. Bên B sẽ thanh toán tiền cho bên bán hàng của Bên A (bên xuất khẩu).</div>
-        <div style={{ textAlign: 'justify' }}>– Lần 2 – Bên A thanh toán 100% các loại thuế, phí dịch vụ cho Bên B, bao gồm các loại thuế và nghĩa vụ của doanh nghiệp đối với lô hàng nhập khẩu mà Bên B đã thanh toán trước để thông quan theo số tiền thực tế.</div>
-        <div style={{ textAlign: 'justify' }}>– Giá trị dịch vụ dựa theo biên bản bàn giao, nghiệm thu và quyết toán giá trị thực tế. Bên B xuất hóa đơn cho Bên A khi bàn giao hàng hóa và dịch vụ.</div>
-        <div className="ml-4" style={{ textAlign: 'justify' }}>+ Hóa đơn giá trị tiền hàng tại điểm 1.1 quy đổi theo giá trị tiền Việt Nam Đồng trên tờ khai hải quan và các loại thuế, phí thực nộp thay cho Bên A theo tờ khai hải quan nhập khẩu.</div>
-        <div className="ml-4" style={{ textAlign: 'justify' }}>+ Hóa đơn phí dịch vụ ủy thác trọn gói: Quy định tại điểm 1.2 theo giá trị nghiệm thu và quyết toán thực tế đã bao gồm thuế GTGT.</div>
-        <div>– Chứng từ thanh toán: Đơn đặt dịch vụ / biên bản bàn giao, nghiệm thu và quyết toán giá trị thực tế.</div>
+        <EditableClause
+          heading="Điều 3: Thời hạn và phương thức thanh toán"
+          value={c.paymentTerms || DEFAULT_PAYMENT_TERMS_DDH_UT}
+          onSave={onChangePaymentTerms}
+          style={{ textAlign: 'justify' }}
+        />
       </div>
 
       <div className="mb-3 text-sm">
