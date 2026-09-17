@@ -434,8 +434,10 @@ export const ContractListPage = ({ type, refreshVersion, customers, sellers, sal
                     <td className="sticky left-0 z-10 bg-white group-hover/row:bg-gray-50 px-4 py-3">
                       <input type="checkbox" checked={selectedIds.has(c.contractId)} onChange={() => toggleOne(c.contractId)} className="cursor-pointer" />
                     </td>
-                    <td className="sticky z-10 bg-white group-hover/row:bg-gray-50 px-5 py-3 font-mono font-bold text-blue-700 whitespace-nowrap relative" style={{ left: contractIdLeft }}>
-                      {c.contractId}
+                    <td className="sticky z-10 bg-white group-hover/row:bg-gray-50 px-5 py-3 font-mono font-bold whitespace-nowrap relative" style={{ left: contractIdLeft }}>
+                      <button onClick={() => setViewContract(c)} className="text-blue-700 hover:text-blue-900 hover:underline" title="Xem chi tiết">
+                        {c.contractId}
+                      </button>
                       {/* Div nền thay vì border-right — border trên ô sticky bị lỗi trình duyệt, mất khi cuộn ngang (đã gặp ở InvoiceGoodsPage). */}
                       {needsHScroll && <div className="absolute top-0 right-0 h-full w-0.5 bg-gray-300" />}
                     </td>
