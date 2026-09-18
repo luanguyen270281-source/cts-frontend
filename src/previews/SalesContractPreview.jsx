@@ -1,5 +1,5 @@
 // File: src/previews/SalesContractPreview.jsx
-import { fmtNum, amountToWordsEN } from '../helpers';
+import { amountToWordsEN } from '../helpers';
 
 // Định dạng USD (dấu phẩy nghìn, 2 số thập phân) — tự viết, không phụ thuộc locale máy
 const fmtUSD = (n) => {
@@ -8,6 +8,12 @@ const fmtUSD = (n) => {
   const [intPart, decPart] = fixed.split('.');
   const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return (num < 0 ? '-' : '') + withCommas + '.' + decPart;
+};
+// Quantity: kiểu Anh/Mỹ (dấu phẩy nghìn), đồng bộ với fmtUSD ở trên
+const fmtQty = (n) => {
+  const num = Math.round(Number(n) || 0);
+  const withCommas = Math.abs(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (num < 0 ? '-' : '') + withCommas;
 };
 const fmtDMY = (d) => {
   if (!d) return '';
@@ -109,7 +115,7 @@ export const SalesContractPreview = ({ c }) => {
               <td className="py-1.5">{i + 1}</td>
               <td className="py-1.5">{it.descriptionEN}</td>
               <td className="py-1.5">{it.origin}</td>
-              <td className="py-1.5 text-right">{fmtNum(it.qty)}</td>
+              <td className="py-1.5 text-right">{fmtQty(it.qty)}</td>
               <td className="py-1.5 pl-2">{it.unit}</td>
               <td className="py-1.5 text-right">{fmtUSD(it.unitPrice)}</td>
               <td className="py-1.5 text-right">{fmtUSD((Number(it.qty) || 0) * (Number(it.unitPrice) || 0))}</td>
@@ -134,8 +140,8 @@ export const SalesContractPreview = ({ c }) => {
           <p className="text-xs mb-0.5">Shipping method: {c.shippingMethod}</p>
           <p className="text-xs mb-0.5">Latest shipment date: {c.latestShipment}</p>
           <p className="text-xs mb-0.5">Shipping terms: {c.incoterms}</p>
-          <p className="text-xs mb-0.5">Port of loading: {c.portLoading}</p>
-          <p className="text-xs mb-0.5">Port of discharge: {c.portDischarge}</p>
+          <p className="text-xs mb-0.5">Place of dispatch: {c.portLoading}</p>
+          <p className="text-xs mb-0.5">Place of delivery: {c.portDischarge}</p>
           <p className="text-xs mb-0.5">Partial shipment: {c.partialShipment || 'Allowed'}</p>
           <p className="text-xs mb-0.5">Early shipment: {c.earlyShipment || 'Allowed'}</p>
           <p className="text-xs mb-1.5">Notice of shipment: {c.noticeShipment}</p>
