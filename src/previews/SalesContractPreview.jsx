@@ -44,7 +44,7 @@ const PartyTable = ({ heading, p, taxCode }) => (
         </tr>
         {taxCode && (
           <tr>
-            <td style={cellLabel}>Vat code:</td>
+            <td style={cellLabel}>Tax code:</td>
             <td style={cellValue} colSpan={3}>{taxCode}</td>
           </tr>
         )}
