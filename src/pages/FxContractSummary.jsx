@@ -1,7 +1,8 @@
 // File: src/pages/FxContractSummary.jsx
 // Tổng hợp Hợp đồng ngoại thương — theo từng khách hàng:
 // Tổng khách chuyển = cộng dồn "Tiền vào" (CNY, customer_paid_total) từ TẤT CẢ lô hàng của khách đó.
-// Đã thanh toán = cộng dồn "Tiền ra" (amount_cny) + "CTS phải thu" (deposit_vnd) từ các lô đó.
+// Đã thanh toán = cộng dồn "Tiền ra" (amount_cny) từ các lô đó. (Không cộng thêm deposit_vnd: từ 27/07 cột này chỉ là
+// bản sao tổng số tệ của cả đề nghị, cộng vào sẽ đếm đôi/nhân N lần.)
 // Còn lại = Tổng khách chuyển - Đã thanh toán.
 import { useState, useMemo } from 'react';
 import { fmtNum } from '../helpers';
@@ -24,7 +25,7 @@ export const FxContractSummary = ({ batches = [], customers = {}, sellers = {}, 
       const r = byCustomer[id];
       r.batchCount += 1;
       r.walletBalance += Number(b.customer_paid_total) || 0; // Tổng khách chuyển (CNY)
-      r.totalPaid += (Number(b.amount_cny) || 0) + (Number(b.deposit_vnd) || 0); // Đã thanh toán = Tiền ra + CTS phải thu
+      r.totalPaid += Number(b.amount_cny) || 0; // Đã thanh toán = Tiền ra (cột I "Số tệ") — khớp Còn lại = H−I ở bảng chi tiết
     });
     return Object.values(byCustomer).map(r => ({ ...r, remaining: r.walletBalance - r.totalPaid }));
   }, [batches]);
