@@ -1,6 +1,6 @@
 // File: src/pages/PaymentRequestPrint.jsx
 // Giấy Đề Nghị Thanh Toán — vừa là màn nhập liệu thật (lưu ngược vào bảng lô hàng), vừa in ra giấy.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { fmtNum, numberToWords, formatThousands } from '../helpers';
 import { buildCustomerOptions, parseCustomerOptionValue, encodeCustomerOptionValue } from '../utils/customerOptions';
 import { SearchableSelect } from '../components/SearchableSelect';
@@ -35,7 +35,7 @@ const fmtDateVN = (d) => {
 };
 
 const blankVoucherRow = () => ({ id: null, dienGiai: '', ctsPhaiThu: '', daThuKhach: '', tyGiaRow: '', tienHangRow: '' });
-const blankFxRow = () => ({ noiDung: '', tyGia: '', soTe: '' });
+const blankFxRow = () => ({ id: null, noiDung: '', tyGia: '', soTe: '' });
 
 // Ô nhập số hiển thị có dấu chấm phân cách hàng nghìn (VD: 1.000.000) ngay khi gõ.
 // allowDecimal=true (dùng cho Số tệ) cho phép gõ cả số thập phân, không tự format dấu phân cách khi đang gõ.
@@ -88,6 +88,8 @@ export const PaymentRequestPrint = ({ customerId: initialCustomerId, customer: i
   // trùng số — nếu lọc theo số sẽ gộp nhầm, sửa 1 đề nghị lại làm nhảy số đề nghị kia).
   const batchesOfCustomer = (initialBatches && customerId)
     ? initialBatches.filter(b => b.customer_id === customerId && (batchIds ? batchIds.includes(b.id) : (requestNo == null || String(b.payment_request_no ?? '') === String(requestNo))))
+        // Danh sách trong bộ nhớ có lô mới lưu nằm TRƯỚC — sắp lại cũ→mới để mở ra đúng thứ tự đã nhập.
+        .slice().sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
     : [];
 
   const [requestDate, setRequestDate] = useState(todayISO());
@@ -108,22 +110,50 @@ export const PaymentRequestPrint = ({ customerId: initialCustomerId, customer: i
   // Nếu mở lại 1 đề nghị có sẵn, ô này được điền sẵn đúng số cũ (vẫn có thể sửa lại nếu cần).
   const [requestNoInput, setRequestNoInput] = useState('');
 
-  // Nếu mở kèm sẵn danh sách lô của khách (đến từ nút "In DNTT") — tự điền bảng chứng từ từ đó
+  // Những giá trị đã lưu của đề nghị đang mở — dùng lúc lưu để CHỈ ghi đè Ghi chú/Ngày khi người dùng thực sự đổi,
+  // và giữ nguyên request_id chung của các lô cùng 1 đề nghị.
+  const loadedRef = useRef({ note: '', date: '', requestId: null });
+
+  // Nếu mở kèm sẵn danh sách lô của khách (đến từ nút "In DNTT" hoặc bấm số đề nghị) — dựng lại ĐÚNG giấy đề nghị:
+  // mỗi lô có thể chứa 1 dòng chứng từ, 1 dòng ngoại tệ, hoặc cả hai; 2 bảng được dựng riêng, mỗi dòng nhớ id lô của nó.
   useEffect(() => {
     if (batchesOfCustomer.length > 0) {
-      setVoucherRows(batchesOfCustomer.map(b => ({
+      // Lô có "phần chứng từ" khi có số tiền chứng từ (lưu chứng từ luôn ghi deposit_vnd/customer_paid_total ≠ null).
+      // KHÔNG dựa vào goods_desc: lô chỉ có ngoại tệ (dòng ngoại tệ thừa) cũng từng bị lưu nội dung vào goods_desc —
+      // nếu coi đó là dòng chứng từ thì 1 đơn có 3 khoản sẽ "tự chia thành 3 dòng chứng từ" mỗi lần mở lại.
+      const hasFxPart = (b) => isFx ? !!(b.fx_content || b.fx_exchange_rate != null || b.amount_cny != null) : !!(b.fx_content || b.exchange_rate != null || b.amount_cny != null);
+      // Lô cũ chỉ có mô tả (không số tiền, không ngoại tệ) vẫn là dòng chứng từ, không được ẩn đi.
+      const hasVoucherPart = (b) => b.deposit_vnd != null || b.customer_paid_total != null || b.voucher_exchange_rate != null || b.voucher_amount_fx != null
+        || (!hasFxPart(b) && !!b.goods_desc);
+      // Lô chỉ có ngoại tệ (kể cả dữ liệu cũ): nội dung ngoại tệ đang nằm trong goods_desc
+      const fxOnlyContent = (b) => (hasVoucherPart(b) ? '' : (b.goods_desc || ''));
+      const vRows = batchesOfCustomer.filter(hasVoucherPart).map(b => ({
         id: b.id, dienGiai: b.goods_desc || '', ctsPhaiThu: isFx ? (b.deposit_vnd ?? '') : '',
         daThuKhach: isFx ? (b.customer_paid_total ?? '') : ((num(b.customer_paid_total) + num(b.deposit_vnd)) || ''),
         tyGiaRow: isFx ? (b.voucher_exchange_rate ?? '') : '', tienHangRow: isFx ? (b.voucher_amount_fx ?? '') : '',
-      })));
-      setFxRows(batchesOfCustomer.map(b => ({
-        noiDung: '', tyGia: b.exchange_rate ?? '', soTe: b.amount_cny ?? '',
-      })));
+        orig: isFx ? String(b.customer_paid_total ?? '') : '',
+      }));
+      const fRows = batchesOfCustomer.filter(hasFxPart).map(b => ({
+        id: b.id, noiDung: (b.fx_content || '') || fxOnlyContent(b),
+        tyGia: isFx ? (b.fx_exchange_rate ?? '') : (b.exchange_rate ?? ''), soTe: b.amount_cny ?? '',
+      }));
+      setVoucherRows(vRows.length ? vRows : [blankVoucherRow()]);
+      setFxRows(fRows.length ? fRows : [blankFxRow()]);
       const firstBank = batchesOfCustomer.find(b => b.bank_account);
       if (firstBank) { setReceiveAccount(firstBank.bank_account || ''); setBankName(firstBank.bank_name || ''); }
       if (batchesOfCustomer[0]?.seller_id) setSellerId(batchesOfCustomer[0].seller_id);
       const existingReqNo = batchesOfCustomer.find(b => b.payment_request_no != null)?.payment_request_no;
       if (existingReqNo != null) setRequestNoInput(String(existingReqNo));
+      // Khôi phục Ghi chú + Ngày đề nghị đã lưu (trước đây không khôi phục nên lưu lại là xoá ghi chú, đổi ngày thành hôm nay)
+      const savedNote = batchesOfCustomer.find(b => b.note)?.note || '';
+      const savedDateRow = batchesOfCustomer.find(b => b.order_date || b.customer_paid_date);
+      const savedDate = savedDateRow ? String(savedDateRow.order_date || savedDateRow.customer_paid_date).slice(0, 10) : '';
+      // Tên/SĐT Sale ghi trên giấy (chỉ Hợp đồng ngoại thương có cột lưu) — đề nghị cũ chưa lưu thì giữ mặc định là người đăng nhập
+      const savedSale = batchesOfCustomer.find(b => b.sale_name != null || b.sale_phone != null);
+      if (savedSale) { setSaleName(savedSale.sale_name || ''); setSalePhone(savedSale.sale_phone || ''); }
+      if (savedNote) setNote(savedNote);
+      if (savedDate) setRequestDate(savedDate);
+      loadedRef.current = { note: savedNote, date: savedDate, requestId: batchesOfCustomer.find(b => b.request_id)?.request_id || null };
       // Khôi phục lại đúng Mã nhánh đã dùng cho đề nghị này (nếu có), để không bị lẫn về khách hàng gốc
       const existingBranchId = batchesOfCustomer.find(b => b.branch_tax_code)?.branch_tax_code;
       if (existingBranchId) {
@@ -156,19 +186,25 @@ export const PaymentRequestPrint = ({ customerId: initialCustomerId, customer: i
     ? numberToWords(Math.abs(chenhLech || totalSoTe), 'tệ')
     : numberToWords(Math.abs(totalTienChuyen || Math.abs(phaiTraKhach) || phaiThuKhach));
 
-  const [removedIds, setRemovedIds] = useState([]); // các id lô đã có sẵn nhưng bị bấm ✕ — sẽ xoá thật khi bấm Lưu
+  // id lô đã có sẵn nhưng dòng chứng từ / dòng ngoại tệ của nó bị bấm ✕ — khi Lưu sẽ xoá phần đó (xoá hẳn lô nếu cả 2 phần đều bỏ)
+  const [removedV, setRemovedV] = useState([]);
+  const [removedF, setRemovedF] = useState([]);
 
   const setVoucherField = (idx, key, val) => setVoucherRows(rows => rows.map((r, i) => i === idx ? { ...r, [key]: val } : r));
   const addVoucherRow = () => setVoucherRows(rows => [...rows, blankVoucherRow()]);
-  const removeVoucherRow = (idx) => setVoucherRows(rows => {
-    const target = rows[idx];
-    if (target?.id) setRemovedIds(ids => [...ids, target.id]);
-    return rows.filter((_, i) => i !== idx);
-  });
+  const removeVoucherRow = (idx) => {
+    const target = voucherRows[idx];
+    if (target?.id) setRemovedV(ids => [...ids, target.id]);
+    setVoucherRows(rows => rows.filter((_, i) => i !== idx));
+  };
 
   const setFxField = (idx, key, val) => setFxRows(rows => rows.map((r, i) => i === idx ? { ...r, [key]: val } : r));
   const addFxRow = () => setFxRows(rows => [...rows, blankFxRow()]);
-  const removeFxRow = (idx) => setFxRows(rows => rows.filter((_, i) => i !== idx));
+  const removeFxRow = (idx) => {
+    const target = fxRows[idx];
+    if (target?.id) setRemovedF(ids => [...ids, target.id]);
+    setFxRows(rows => rows.filter((_, i) => i !== idx));
+  };
 
   const pickSeller = (id) => {
     setSellerId(id);
@@ -180,12 +216,16 @@ export const PaymentRequestPrint = ({ customerId: initialCustomerId, customer: i
     if (ok) resetAfterSave();
   };
 
-  // Lưu và In cùng lúc: in ra trước (khi dữ liệu còn trên màn), lưu vào hệ thống, rồi mới reset về trống.
+  // Lưu và In cùng lúc: mở sẵn cửa sổ in ngay khi bấm (phải làm trước khi chờ lưu, nếu không trình duyệt chặn popup),
+  // lưu vào hệ thống; CHỈ in khi lưu thành công (lưu lỗi thì đóng cửa sổ, không có giấy in ra), rồi mới reset về trống.
   const handleSaveAndPrint = async () => {
     if (!customerId) return alert('Vui lòng chọn khách hàng trước khi lưu.');
     if (!requestNoInput.trim()) return alert('Vui lòng nhập Số đề nghị TT trước khi lưu.');
-    doPrint();
+    const content = document.getElementById('dntt-print-zone').innerHTML; // chụp lại nội dung trước khi form bị reset
+    const w = window.open('', '_blank');
+    if (!w) alert('Trình duyệt đang chặn cửa sổ bật lên (popup) nên sẽ chỉ lưu, không in. Cho phép popup cho trang này rồi bấm lại nếu cần in.');
     const ok = await saveToSystemCore();
+    if (w) { if (ok) printInto(w, content); else w.close(); }
     if (ok) resetAfterSave();
   };
 
@@ -195,55 +235,103 @@ export const PaymentRequestPrint = ({ customerId: initialCustomerId, customer: i
     setReceiveAccount('');
     setBankName('');
     setNote('');
-    setRemovedIds([]);
+    setRemovedV([]);
+    setRemovedF([]);
+    loadedRef.current = { note: '', date: '', requestId: null };
     setRequestNoInput('');
     setVoucherRows([blankVoucherRow()]);
     setFxRows([blankFxRow()]);
     setRequestDate(todayISO());
   };
 
+  // Có dữ liệu thật ở dòng chứng từ / dòng ngoại tệ không (dòng trống hoàn toàn thì bỏ qua).
+  const hasVoucherData = (r) => !!(num(r.ctsPhaiThu) || num(r.daThuKhach) || r.dienGiai.trim() || r.tyGiaRow !== '' || r.tienHangRow !== '');
+  const hasFxData = (r) => !!(num(r.tyGia) || num(r.soTe) || r.noiDung.trim());
+
   // Trả về true nếu lưu thành công (KHÔNG tự reset — để caller quyết định)
+  // Mỗi LÔ (bản ghi) chứa tối đa 1 dòng chứng từ + 1 dòng ngoại tệ. Dòng đã có sẵn giữ NGUYÊN lô của nó (theo id),
+  // không còn ghép 2 bảng theo số thứ tự nữa — nên xoá/sửa/thêm dòng không làm lệch sang lô khác.
   const saveToSystemCore = async () => {
     if (!customerId) { alert('Vui lòng chọn khách hàng trước khi lưu.'); return false; }
     if (!requestNoInput.trim()) { alert('Vui lòng nhập Số đề nghị TT trước khi lưu.'); return false; }
-    const rowsToSave = voucherRows.filter(r => num(r.ctsPhaiThu) || num(r.daThuKhach) || r.dienGiai.trim() || r.id);
-    const fxCheck = fxRows.filter(r => num(r.tyGia) || num(r.soTe));
-    if (rowsToSave.length === 0 && fxCheck.length === 0) { alert('Chưa có dòng chứng từ hoặc dòng ngoại tệ nào để lưu.'); return false; }
+
+    const lots = new Map(); // id lô -> { id, v, f }
+    const ensureLot = (id) => { if (!lots.has(id)) lots.set(id, { id, v: null, f: null }); return lots.get(id); };
+    voucherRows.forEach(r => { if (r.id) ensureLot(r.id).v = hasVoucherData(r) ? r : null; });
+    fxRows.forEach(r => { if (r.id) ensureLot(r.id).f = hasFxData(r) ? r : null; });
+    removedV.forEach(id => ensureLot(id));
+    removedF.forEach(id => ensureLot(id));
+    const newV = voucherRows.filter(r => !r.id && hasVoucherData(r));
+    const newF = fxRows.filter(r => !r.id && hasFxData(r));
+    // Dòng mới ưu tiên lấp vào chỗ trống của lô cũ (phần đã bỏ), còn dư mới tạo lô mới
+    for (const l of lots.values()) {
+      if (!l.v && newV.length) l.v = newV.shift();
+      if (!l.f && newF.length) l.f = newF.shift();
+    }
+    for (let i = 0; i < Math.max(newV.length, newF.length); i++) {
+      lots.set(`new-${i}`, { id: null, v: newV[i] || null, f: newF[i] || null });
+    }
+    const lotList = [...lots.values()];
+    const toDelete = lotList.filter(l => l.id && !l.v && !l.f).map(l => l.id);
+    const toSave = lotList.filter(l => l.v || l.f);
+    if (toSave.length === 0 && toDelete.length === 0) { alert('Chưa có dòng chứng từ hoặc dòng ngoại tệ nào để lưu.'); return false; }
+
+    if (toDelete.length > 0 && onDelete && !confirm(`Lưu sẽ xoá ${toDelete.length} lô hàng đã bị bỏ khỏi đề nghị này. Thao tác không thể hoàn tác. Tiếp tục?`)) return false;
+
     setSaving(true);
     const savedRequestNo = requestNoInput.trim();
-    const fxWithData = fxRows.filter(r => num(r.tyGia) || num(r.soTe));
-    const rowCount = Math.max(rowsToSave.length, fxWithData.length, 1);
+    // Hợp đồng ngoại thương: mọi lô cùng 1 đề nghị chia sẻ 1 request_id để về sau mở lại ĐỦ cả giấy.
+    if (!loadedRef.current.requestId) loadedRef.current.requestId = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const noteChanged = note !== loadedRef.current.note;
+    const dateChanged = requestDate !== loadedRef.current.date;
     try {
-      for (let i = 0; i < rowCount; i++) {
-        const r = rowsToSave[i];
-        const fx = fxWithData[i];
-        if (!r && !fx) continue;
-        const existingId = r?.id || null;
-        await onSave(existingId, {
+      for (const l of toSave) {
+        const { v, f } = l;
+        const payload = {
           customer_id: customerId,
           branch_tax_code: selectedBranch?.id || null,
           seller_id: sellerId || null,
-          goods_desc: (r?.dienGiai || fx?.noiDung) || null,
-          deposit_vnd: !isFx ? (r ? chenhLech : null) : (r ? totalSoTe : null),
-          customer_paid_total: !isFx ? (r ? ctsPhaiThuFor(r) : null) : (r && r.daThuKhach !== '' ? num(r.daThuKhach) : null),
-          customer_paid_date: requestDate,
           bank_account: receiveAccount || null,
           bank_name: bankName || null,
-          exchange_rate: isFx ? (r && r.tyGiaRow !== '' ? num(r.tyGiaRow) : null) : (fx ? num(fx.tyGia) : null),
-          amount_cny: fx ? num(fx.soTe) : null,
-          cny_transferred: fx ? num(fx.soTe) : null,
-          ...(isFx ? {
-            voucher_exchange_rate: r && r.tyGiaRow !== '' ? num(r.tyGiaRow) : null,
-            voucher_amount_fx: r && r.tienHangRow !== '' ? num(r.tienHangRow) : null,
-            fx_converted_total: r && r.daThuKhach !== '' ? num(r.daThuKhach) : null,
-          } : {}),
           payment_request_no: savedRequestNo,
-          order_date: requestDate,
-          note: note || null,
-        });
+          // Phần chứng từ (để null nếu dòng chứng từ của lô này đã bỏ)
+          goods_desc: (v?.dienGiai || (!isFx ? f?.noiDung : '')) || null,
+          deposit_vnd: v ? (!isFx ? chenhLech : totalSoTe) : null,
+          customer_paid_total: v ? (!isFx ? ctsPhaiThuFor(v) : (v.daThuKhach !== '' ? num(v.daThuKhach) : null)) : null,
+          // Phần ngoại tệ (để null nếu dòng ngoại tệ của lô này đã bỏ)
+          amount_cny: f ? num(f.soTe) : null,
+          cny_transferred: f ? num(f.soTe) : null,
+          // Chung cho cả 2 luồng: liên kết các lô cùng 1 đề nghị + thông tin ghi trên giấy
+          request_id: loadedRef.current.requestId,
+          sale_name: saleName,
+          sale_phone: salePhone,
+          fx_content: f?.noiDung?.trim() ? f.noiDung : null,
+          ...(isFx ? {
+            exchange_rate: v && v.tyGiaRow !== '' ? num(v.tyGiaRow) : null,
+            voucher_exchange_rate: v && v.tyGiaRow !== '' ? num(v.tyGiaRow) : null,
+            voucher_amount_fx: v && v.tienHangRow !== '' ? num(v.tienHangRow) : null,
+            fx_exchange_rate: f && f.tyGia !== '' ? num(f.tyGia) : null,
+          } : {
+            exchange_rate: f ? num(f.tyGia) : null,
+          }),
+        };
+        // "Tổng tiền tệ quy đổi" còn sửa tay được ở bảng theo dõi — chỉ ghi lại khi dòng mới/đổi số/đã bỏ dòng, tránh ghi đè số đã sửa
+        if (isFx && (!v || !v.id || String(v.daThuKhach) !== v.orig)) {
+          payload.fx_converted_total = v && v.daThuKhach !== '' ? num(v.daThuKhach) : null;
+        }
+        // Lô đã có: chỉ ghi đè Ngày/Ghi chú khi người dùng thực sự đổi (tránh xoá ghi chú từng dòng nhập ở bảng theo dõi)
+        if (!l.id || dateChanged) { payload.customer_paid_date = requestDate; payload.order_date = requestDate; }
+        if (!l.id || noteChanged) payload.note = note || null;
+        const saved = await onSave(l.id, payload);
+        // Lưu xong thì gắn id lô vào các dòng — nếu lỗi ở dòng sau, bấm Lưu lại sẽ cập nhật đúng lô này, không sinh bản ghi trùng
+        const lotId = saved?.id ?? l.id;
+        if (lotId) {
+          if (l.v && !l.v.id) setVoucherRows(rows => rows.map(r => (r === l.v ? { ...r, id: lotId } : r)));
+          if (l.f && !l.f.id) setFxRows(rows => rows.map(r => (r === l.f ? { ...r, id: lotId } : r)));
+        }
       }
-      if (removedIds.length > 0 && onDelete) {
-        for (const id of removedIds) { await onDelete(id); }
+      if (toDelete.length > 0 && onDelete) {
+        for (const id of toDelete) { await onDelete(id, { skipConfirm: true }); }
       }
       return true;
     } catch (err) {
@@ -260,10 +348,7 @@ export const PaymentRequestPrint = ({ customerId: initialCustomerId, customer: i
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"/>${styleLinks}<style>${PRINT_STYLE}</style></head><body>${innerHTML}</body></html>`;
   };
 
-  const doPrint = () => {
-    const content = document.getElementById('dntt-print-zone').innerHTML;
-    const w = window.open('', '_blank');
-    if (!w) { alert('Trình duyệt đang chặn cửa sổ bật lên (popup). Vui lòng cho phép popup cho trang này rồi bấm lại.'); return; }
+  const printInto = (w, content) => {
     w.document.write(getFullHtml(content));
     w.document.close();
     w.onload = () => { w.focus(); w.print(); w.close(); };

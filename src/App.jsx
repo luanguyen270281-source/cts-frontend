@@ -282,8 +282,8 @@ export default function App() {
     return row;
   };
 
-  const deleteCashFlowBatchRow = async (id) => {
-    if (!confirm('Xóa lô hàng này khỏi bảng theo dõi dòng tiền? Thao tác không thể hoàn tác.')) return;
+  const deleteCashFlowBatchRow = async (id, opts = {}) => {
+    if (!opts.skipConfirm && !confirm('Xóa lô hàng này khỏi bảng theo dõi dòng tiền? Thao tác không thể hoàn tác.')) return;
     await api.deleteCashFlowBatch(id);
     setCashFlowBatches(prev => prev.filter(r => r.id !== id));
   };
@@ -297,8 +297,8 @@ export default function App() {
     return row;
   };
 
-  const deleteFxContractBatchRow = async (id) => {
-    if (!confirm('Xóa lô hàng này khỏi Hợp đồng ngoại thương? Thao tác không thể hoàn tác.')) return;
+  const deleteFxContractBatchRow = async (id, opts = {}) => {
+    if (!opts.skipConfirm && !confirm('Xóa lô hàng này khỏi Hợp đồng ngoại thương? Thao tác không thể hoàn tác.')) return;
     await api.deleteFxContractBatch(id);
     setFxContractBatches(prev => prev.filter(r => r.id !== id));
   };

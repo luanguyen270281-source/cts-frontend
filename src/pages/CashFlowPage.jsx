@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { Pagination } from '../components/Pagination';
 import { buildCustomerOptions, resolveCustomerId, parseCustomerOptionValue, encodeCustomerOptionValue } from '../utils/customerOptions';
 import { PaymentRequestPrint } from './PaymentRequestPrint';
+import { siblingBatchIds } from '../utils/paymentRequestGroup';
 import { api } from '../lib/api';
 
 const num = (v) => Number(v) || 0;
@@ -893,7 +894,7 @@ export const CashFlowPage = ({ batches = [], customers = {}, sellers = {}, isAdm
           if (col.key === 'payment_request_no' && !isNew && row.payment_request_no != null) {
             return (
               <td key={col.key} rowSpan={rowSpan} style={{ minWidth: col.w, whiteSpace: "nowrap" }} className="border-r border-b border-gray-100 align-top px-2 py-1.5 text-sm bg-amber-50/60 text-right">
-                <button type="button" onClick={() => onOpenPaymentRequest?.(row.customer_id, row.payment_request_no, [row.id])}
+                <button type="button" onClick={() => onOpenPaymentRequest?.(row.customer_id, row.payment_request_no, siblingBatchIds(row, batches))}
                   className="text-blue-600 hover:text-blue-800 underline font-medium" title="Bấm để sửa lại ở Đề Nghị Thanh Toán">
                   {row.payment_request_no}
                 </button>
