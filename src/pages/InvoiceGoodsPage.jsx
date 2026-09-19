@@ -165,7 +165,10 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
     roTable.observe(tableEl);
     roContainer.observe(containerEl);
     return () => { roTable.disconnect(); roContainer.disconnect(); };
-  }, [rows.length]);
+  // loading trong deps: lúc đang tải bảng bị gỡ khỏi DOM rồi dựng lại phần tử <table> mới — nếu chỉ
+  // phụ thuộc rows.length (vd trang nào cũng 50 dòng) thì observer vẫn bám vào <table> cũ đã gỡ,
+  // tableRenderWidth về 0 và thanh cuộn ngang trên đầu biến mất.
+  }, [rows.length, loading]);
 
   // Chỉ hiện viền phân tách ở mép cột đóng băng khi THỰC SỰ đang cần cuộn ngang (bảng rộng hơn
   // khung nhìn) — màn đủ rộng để hiện hết bảng thì không cần viền này, đỡ rối mắt không cần thiết.
