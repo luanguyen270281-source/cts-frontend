@@ -24,7 +24,7 @@ const NavBtn = ({ item, page, setPage, indent }) => {
   );
 };
 
-export const Sidebar = ({ page, setPage, counts, onLogout, isAdmin }) => {
+export const Sidebar = ({ page, setPage, counts, onLogout, isAdmin, canManageUsers }) => {
   const top = [
     { id: 'dashboard', icon: '📊', label: 'Dashboard' },
     ...(isAdmin ? [{ id: 'settings', icon: '⚙️', label: 'Cài đặt' }] : []),
@@ -103,7 +103,7 @@ export const Sidebar = ({ page, setPage, counts, onLogout, isAdmin }) => {
           </div>
         ))}
 
-        {isAdmin && (
+        {canManageUsers && (
           <>
             <div className="border-t border-blue-700/70 mb-3" />
             <NavBtn item={{ id: 'admin-users', icon: '👤', label: 'Quản lý tài khoản' }} page={page} setPage={setPage} />

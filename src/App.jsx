@@ -607,9 +607,12 @@ export default function App() {
   // Sale chưa chọn phòng ban → yêu cầu chọn trước khi vào app
   // Chưa điền đủ thông tin (tên + phòng ban + mã sale) → yêu cầu tự điền trước khi vào app
   const isAdmin = profile?.role === 'admin';
-  if (profile && profile.role !== 'admin' && (!profile.full_name || !profile.department_id || !profile.ma_sale)) {
+  const isHR = profile?.role === 'hr';
+  const canManageUsers = isAdmin || isHR;
+  const needsMaSale = !isAdmin && !isHR;
+  if (profile && !isAdmin && (!profile.full_name || !profile.department_id || (needsMaSale && !profile.ma_sale))) {
     return <ErrorBoundary><Suspense fallback={<PageLoadingFallback />}>
-      <CompleteProfilePage profile={profile} departments={departments} isAdmin={isAdmin}
+      <CompleteProfilePage profile={profile} departments={departments} needsMaSale={needsMaSale}
         onDone={(updated) => setProfile(updated)} />
     </Suspense></ErrorBoundary>;
   }
@@ -632,7 +635,7 @@ export default function App() {
         </div>
       ) : <Dashboard customers={customers} stats={dashboardStats} setPage={setPage} />;
       case 'customers':    return <CustomersPage customers={customers} departments={departments} onSave={saveCustomer} onDelete={deleteCustomer} onBulkImport={bulkImportCustomers} saleProfiles={saleProfiles} isAdmin={isAdmin} profile={profile} />;
-      case 'invoice_goods': return <InvoiceGoodsPage onBulkImport={bulkImportInvoiceGoods} onDelete={deleteInvoiceGoodsRow} onDeleteMany={bulkDeleteInvoiceGoods} isAdmin={isAdmin} />;
+      case 'invoice_goods': return <InvoiceGoodsPage onBulkImport={bulkImportInvoiceGoods} onDelete={deleteInvoiceGoodsRow} onDeleteMany={bulkDeleteInvoiceGoods} isAdmin={isAdmin} isHR={isHR} />;
       case 'cash_flow': return <CashFlowSummary batches={cashFlowBatches} customers={customers} sellers={sellers} isAdmin={isAdmin} saleProfiles={saleProfiles} onSave={saveCashFlowBatch} onDelete={deleteCashFlowBatchRow}
           onOpenPaymentRequest={(customerId, reqNo, batchIds) => { setPaymentRequestCustomerId(customerId); setPaymentRequestReqNo(reqNo ?? null); setPaymentRequestBatchIds(batchIds || null); setPage('payment_request'); }} />;
       case 'payment_request': return <PaymentRequestPrint
@@ -696,9 +699,9 @@ export default function App() {
       case 'edit-hdnt_ut': return <CreateHDNTUT sellers={sellers} customers={customers} onSave={saveContract} setPage={setPage} isAdmin={isAdmin} saleProfiles={saleProfiles} editData={editContractData} />;
       case 'edit-ddh_ut':  return <CreateDDHUT  sellers={sellers} customers={customers} onSave={saveContract} setPage={setPage} isAdmin={isAdmin} saleProfiles={saleProfiles} editData={editContractData} />;
       case 'edit-bbbg_ut': return <CreateBBBGUT sellers={sellers} customers={customers} onSave={saveContract} setPage={setPage} isAdmin={isAdmin} saleProfiles={saleProfiles} editData={editContractData} />;
-      case 'my-profile': return <CompleteProfilePage profile={profile} departments={departments} isAdmin={isAdmin}
+      case 'my-profile': return <CompleteProfilePage profile={profile} departments={departments} needsMaSale={needsMaSale}
           onDone={(updated) => setProfile(updated)} isEdit={true} />;
-      case 'admin-users':  return isAdmin ? <AdminUsersPage departments={departments} /> : <Dashboard customers={customers} stats={dashboardStats} setPage={setPage} />;
+      case 'admin-users':  return canManageUsers ? <AdminUsersPage departments={departments} isAdmin={isAdmin} /> : <Dashboard customers={customers} stats={dashboardStats} setPage={setPage} />;
       default:             return <Dashboard customers={customers} stats={dashboardStats} setPage={setPage} />;
     }
   };
@@ -718,7 +721,7 @@ export default function App() {
           if (p === 'payment_request') { setPaymentRequestCustomerId(''); setPaymentRequestReqNo(null); setPaymentRequestBatchIds(null); }
           if (p === 'fx_contract_payment_request') { setFxPaymentRequestCustomerId(''); setFxPaymentRequestReqNo(null); setFxPaymentRequestBatchIds(null); }
           setPage(p);
-        }} counts={counts} onLogout={handleLogout} isAdmin={isAdmin} />
+        }} counts={counts} onLogout={handleLogout} isAdmin={isAdmin} canManageUsers={canManageUsers} />
       </ErrorBoundary>
       <main className="flex-1 p-6 overflow-auto bg-gray-50" style={{ minHeight: '100vh' }}>
         {noSellers && page !== 'settings' && (

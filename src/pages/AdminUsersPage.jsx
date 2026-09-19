@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 
-export const AdminUsersPage = ({ departments }) => {
+export const AdminUsersPage = ({ departments, isAdmin = false }) => {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -110,6 +110,7 @@ export const AdminUsersPage = ({ departments }) => {
           className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
           <option value="">Tất cả vai trò</option>
           <option value="sale">Sale</option>
+          <option value="hr">Hành chính nhân sự</option>
           <option value="admin">Admin</option>
         </select>
         {(search || deptFilter || roleFilter) && (
@@ -136,7 +137,8 @@ export const AdminUsersPage = ({ departments }) => {
               const isApproved = edits[p.id]?.approved;
               const isDeleting = deletingId === p.id;
               const deptName = departments?.[p.department_id]?.name || '';
-              const missingMaSale = p.role !== 'admin' && !edits[p.id]?.ma_sale;
+              const missingMaSale = p.role !== 'admin' && p.role !== 'hr' && !edits[p.id]?.ma_sale;
+              const locked = !isAdmin && p.role === 'admin';
               return (
                 <tr key={p.id} className={missingMaSale ? 'bg-red-50/50' : !isApproved ? 'bg-amber-50/40' : ''}>
                   <td className="px-4 py-2.5 text-gray-400">{idx + 1}</td>
@@ -171,9 +173,11 @@ export const AdminUsersPage = ({ departments }) => {
                   </td>
                   <td className="px-4 py-2.5">
                     <select value={edits[p.id]?.role || 'sale'} onChange={e => setEdit(p.id, 'role', e.target.value)}
-                      className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                      disabled={locked}
+                      className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100">
                       <option value="sale">Sale</option>
-                      <option value="admin">Admin</option>
+                      <option value="hr">Hành chính nhân sự</option>
+                      {(isAdmin || p.role === 'admin') && <option value="admin">Admin</option>}
                     </select>
                   </td>
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
@@ -183,11 +187,11 @@ export const AdminUsersPage = ({ departments }) => {
                         ✓ Duyệt
                       </button>
                     )}
-                    <button onClick={() => save(p.id)} disabled={savingId === p.id}
+                    <button onClick={() => save(p.id)} disabled={savingId === p.id || locked}
                       className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-60 mr-1">
                       {savingId === p.id ? 'Đang lưu...' : 'Lưu'}
                     </button>
-                    <button onClick={() => deleteUser(p)} disabled={isDeleting}
+                    <button onClick={() => deleteUser(p)} disabled={isDeleting || locked}
                       className="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-60">
                       {isDeleting ? '...' : '🗑️'}
                     </button>

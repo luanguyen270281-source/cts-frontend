@@ -19,7 +19,7 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
   const fileInputRef = useRef(null);
 
   // Sale tự tạo khách hàng → tự gán vào chính họ, không cần chọn
-  const autoSaleAssign = !isAdmin && profile
+  const autoSaleAssign = !isAdmin && profile && profile.role !== 'hr'
     ? { code: profile.ma_sale || '', name: profile.full_name || '', accountId: profile.id }
     : null;
 

@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
 
-export const CompleteProfilePage = ({ profile, departments, onDone, isEdit = false, isAdmin = false }) => {
+export const CompleteProfilePage = ({ profile, departments, onDone, isEdit = false, needsMaSale = true }) => {
   const [fullName, setFullName] = useState(profile?.full_name || '');
   const [phone, setPhone] = useState(profile?.phone || '');
   const [departmentId, setDepartmentId] = useState(profile?.department_id || '');
@@ -17,7 +17,7 @@ export const CompleteProfilePage = ({ profile, departments, onDone, isEdit = fal
     e.preventDefault();
     if (!fullName.trim()) return setError('Vui lòng nhập họ và tên');
     if (!departmentId) return setError('Vui lòng chọn phòng ban');
-    if (!isAdmin && !maSale.trim()) return setError('Vui lòng nhập Mã Sale của bạn');
+    if (needsMaSale && !maSale.trim()) return setError('Vui lòng nhập Mã Sale của bạn');
     setLoading(true); setError(''); setSaved(false);
     try {
       const updated = await api.updateProfile(profile.id, {
@@ -79,7 +79,7 @@ export const CompleteProfilePage = ({ profile, departments, onDone, isEdit = fal
             </select>
           </div>
 
-          {!isAdmin && (
+          {needsMaSale && (
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Mã Sale <span className="text-red-500">*</span></label>
               <input type="text" value={maSale} onChange={e => setMaSale(e.target.value)}

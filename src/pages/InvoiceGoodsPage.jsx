@@ -51,7 +51,14 @@ const COLW_STORAGE_KEY = 'invoiceGoods.colWidths.v3';
 // Bảng invoice_goods đã lên tới hàng chục nghìn dòng — không còn tải hết về client để lọc/phân trang
 // nữa (từng khiến supabase-js tự lặp request 1000 dòng/lần để lấy hết, rất chậm). Giờ dùng RPC
 // list_invoice_goods_paged để lọc + phân trang ngay ở DB, chỉ tải đúng số dòng cần hiển thị.
-export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin = false }) => {
+// Cột theo dõi hồ sơ mỗi vai trò được sửa: admin sửa hết (gồm 4 cột Kế toán), sale và HR chỉ sửa cột của mình.
+const WORKFLOW_EDITABLE_BY = {
+  sale: ['sale_sent', 'sale_sent_date', 'deadline_days'],
+  hr: ['hr_sent', 'hr_sent_date'],
+};
+
+export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin = false, isHR = false }) => {
+  const canEdit = (field) => isAdmin || WORKFLOW_EDITABLE_BY[isHR ? 'hr' : 'sale'].includes(field);
   const [search, setSearch] = useState('');
   const [sellerFilter, setSellerFilter] = useState('');
   const [saleFilter, setSaleFilter] = useState('');
@@ -771,63 +778,63 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                       chặn non-admin sửa các cột khác (số tiền, hàng hóa...) ngoài 9 cột này. */}
                   <td className="px-3 py-3 text-center">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'sale_sent')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'sale_sent')] === 'saved'}>
-                      <input type="checkbox" checked={!!inv.sale_sent} disabled={cellStatus[cellKey(inv.id, 'sale_sent')] === 'saving'}
+                      <input type="checkbox" checked={!!inv.sale_sent} disabled={cellStatus[cellKey(inv.id, 'sale_sent')] === 'saving' || !canEdit('sale_sent')}
                         onChange={() => toggleWorkflowFlag(inv.id, 'sale_sent', !!inv.sale_sent)}
                         className="cursor-pointer w-4 h-4 accent-blue-600" title="Tích khi Sale đã gửi hồ sơ" />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saved'}>
-                      <WorkflowDatePicker value={inv.sale_sent_date} disabled={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saving'}
+                      <WorkflowDatePicker value={inv.sale_sent_date} readOnly={!canEdit('sale_sent_date')} disabled={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saving' || !canEdit('sale_sent_date')}
                         onChange={v => saveWorkflowDate(inv.id, 'sale_sent_date', v, inv.sale_sent_date)}
                         onClear={() => saveWorkflowDate(inv.id, 'sale_sent_date', '', inv.sale_sent_date)} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'hr_sent')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'hr_sent')] === 'saved'}>
-                      <input type="checkbox" checked={!!inv.hr_sent} disabled={cellStatus[cellKey(inv.id, 'hr_sent')] === 'saving'}
+                      <input type="checkbox" checked={!!inv.hr_sent} disabled={cellStatus[cellKey(inv.id, 'hr_sent')] === 'saving' || !canEdit('hr_sent')}
                         onChange={() => toggleWorkflowFlag(inv.id, 'hr_sent', !!inv.hr_sent)}
                         className="cursor-pointer w-4 h-4 accent-blue-600" title="Tích khi Nhân sự đã gửi hồ sơ" />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saved'}>
-                      <WorkflowDatePicker value={inv.hr_sent_date} disabled={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saving'}
+                      <WorkflowDatePicker value={inv.hr_sent_date} readOnly={!canEdit('hr_sent_date')} disabled={cellStatus[cellKey(inv.id, 'hr_sent_date')] === 'saving' || !canEdit('hr_sent_date')}
                         onChange={v => saveWorkflowDate(inv.id, 'hr_sent_date', v, inv.hr_sent_date)}
                         onClear={() => saveWorkflowDate(inv.id, 'hr_sent_date', '', inv.hr_sent_date)} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'accounting_received')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'accounting_received')] === 'saved'}>
-                      <input type="checkbox" checked={!!inv.accounting_received} disabled={cellStatus[cellKey(inv.id, 'accounting_received')] === 'saving'}
+                      <input type="checkbox" checked={!!inv.accounting_received} disabled={cellStatus[cellKey(inv.id, 'accounting_received')] === 'saving' || !canEdit('accounting_received')}
                         onChange={() => toggleWorkflowFlag(inv.id, 'accounting_received', !!inv.accounting_received)}
                         className="cursor-pointer w-4 h-4 accent-green-600" title="Tích khi Kế toán đã nhận hồ sơ" />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saved'}>
-                      <WorkflowDatePicker value={inv.accounting_received_date} disabled={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saving'}
+                      <WorkflowDatePicker value={inv.accounting_received_date} readOnly={!canEdit('accounting_received_date')} disabled={cellStatus[cellKey(inv.id, 'accounting_received_date')] === 'saving' || !canEdit('accounting_received_date')}
                         onChange={v => saveWorkflowDate(inv.id, 'accounting_received_date', v, inv.accounting_received_date)}
                         onClear={() => saveWorkflowDate(inv.id, 'accounting_received_date', '', inv.accounting_received_date)} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'accounting_contract_received')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'accounting_contract_received')] === 'saved'}>
-                      <input type="checkbox" checked={!!inv.accounting_contract_received} disabled={cellStatus[cellKey(inv.id, 'accounting_contract_received')] === 'saving'}
+                      <input type="checkbox" checked={!!inv.accounting_contract_received} disabled={cellStatus[cellKey(inv.id, 'accounting_contract_received')] === 'saving' || !canEdit('accounting_contract_received')}
                         onChange={() => toggleWorkflowFlag(inv.id, 'accounting_contract_received', !!inv.accounting_contract_received)}
                         className="cursor-pointer w-4 h-4 accent-green-600" title="Tích khi Kế toán đã nhận hợp đồng" />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'accounting_contract_received_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'accounting_contract_received_date')] === 'saved'}>
-                      <WorkflowDatePicker value={inv.accounting_contract_received_date} disabled={cellStatus[cellKey(inv.id, 'accounting_contract_received_date')] === 'saving'}
+                      <WorkflowDatePicker value={inv.accounting_contract_received_date} readOnly={!canEdit('accounting_contract_received_date')} disabled={cellStatus[cellKey(inv.id, 'accounting_contract_received_date')] === 'saving' || !canEdit('accounting_contract_received_date')}
                         onChange={v => saveWorkflowDate(inv.id, 'accounting_contract_received_date', v, inv.accounting_contract_received_date)}
                         onClear={() => saveWorkflowDate(inv.id, 'accounting_contract_received_date', '', inv.accounting_contract_received_date)} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">
                     <WorkflowCell saving={cellStatus[cellKey(inv.id, 'deadline_days')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'deadline_days')] === 'saved'}>
-                      <input type="number" min="0" value={hanDrafts[inv.id] ?? (inv.deadline_days ?? '')} disabled={cellStatus[cellKey(inv.id, 'deadline_days')] === 'saving'}
+                      <input type="number" min="0" value={hanDrafts[inv.id] ?? (inv.deadline_days ?? '')} disabled={cellStatus[cellKey(inv.id, 'deadline_days')] === 'saving' || !canEdit('deadline_days')}
                         onChange={e => setHanDrafts(prev => ({ ...prev, [inv.id]: e.target.value }))}
                         onBlur={e => { if (e.target.value !== String(inv.deadline_days ?? '')) saveWorkflowHan(inv.id, e.target.value, inv.deadline_days); }}
                         className="w-16 border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-200" />
@@ -876,7 +883,7 @@ function formatVNDate(value) {
 // 1 ô ngày trong 9 cột theo dõi hồ sơ: input[type=date] thật bị ẩn hẳn (sr-only) để trình duyệt
 // không tự vẽ "mm/dd/yyyy" hay highlight ô đang chọn — thay vào đó hiện 1 nút giả (rỗng khi chưa
 // có ngày, "dd/mm/yyyy" khi đã chọn). Bấm nút giả -> showPicker() trên input ẩn để mở lịch chọn.
-function WorkflowDatePicker({ value, disabled, onChange, onClear }) {
+function WorkflowDatePicker({ value, disabled, readOnly = false, onChange, onClear }) {
   const inputRef = useRef(null);
   const openPicker = () => {
     if (disabled) return;
@@ -898,7 +905,7 @@ function WorkflowDatePicker({ value, disabled, onChange, onClear }) {
           onChange={e => onChange(e.target.value)} tabIndex={-1} aria-hidden="true"
           className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" />
       </div>
-      {value && (
+      {value && !readOnly && (
         <button type="button" title="Xóa ngày" onClick={onClear}
           className="text-gray-400 hover:text-red-500 px-1 text-sm leading-none">×</button>
       )}
