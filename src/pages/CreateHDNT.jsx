@@ -10,7 +10,6 @@ import { HDNTPreview } from '../previews/HDNTPreview';
 import { buildContractId, resolveSaleCode } from '../helpers';
 import { buildCustomerOptions, parseCustomerOptionValue, encodeCustomerOptionValue } from '../utils/customerOptions';
 import { api } from '../lib/api';
-import { CustomerForm } from './CustomerForm';
 
 export const CreateHDNT = ({ sellers, customers, onSave, setPage, editData, isAdmin = false, profile = null, saleProfiles = [] }) => {
   const isEdit = !!editData;
@@ -23,9 +22,7 @@ export const CreateHDNT = ({ sellers, customers, onSave, setPage, editData, isAd
   const [date, setDate] = useState(editData?.date || new Date().toISOString().slice(0, 10));
   // null = số hợp đồng tự sinh theo thông tin bên dưới; nếu khác null là người dùng đã tự sửa
   const [idOverride, setIdOverride] = useState(editData?.contractId ?? null);
-  const [editingSeller, setEditingSeller] = useState(false);
-  const [sellerOverride, setSellerOverride] = useState(editData?.sellerSnapshot || null); // sửa riêng cho hợp đồng này, không đổi bên bán gốc
-  const seller = sellerOverride || sellers[sellerId] || {};
+  const seller = sellers[sellerId] || {};
   const [branchIndex, setBranchIndex] = useState(null); // null = dang dung Ma goc, khong phai nhanh nao
   const rawCustomer = customers[customerId] || {};
   const selectedBranch = branchIndex != null ? rawCustomer.branches?.[branchIndex] : null;
@@ -108,20 +105,11 @@ export const CreateHDNT = ({ sellers, customers, onSave, setPage, editData, isAd
             <div className="space-y-3">
               <SearchableSelect
                 label="Bên Bán (Công ty)" required
-                value={sellerId} onChange={(id) => { setSellerId(id); setSellerOverride(null); setEditingSeller(false); }}
+                value={sellerId} onChange={setSellerId}
                 placeholder="-- Chọn công ty bên bán --"
                 options={Object.entries(sellers).map(([id, s]) => ({ value: id, label: `${s.shortName ? `[${s.shortName}] ` : ''}${s.companyName}` }))}
               />
-              {sellerId && <PartyInfoCard title="Thông tin Bên Bán (tự điền)" p={seller} extra={seller.shortName ? <span className="text-gray-400 font-normal"> • Viết tắt: {seller.shortName}</span> : null}
-                onEdit={() => setEditingSeller(v => !v)} />}
-              {sellerId && editingSeller && (
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <p className="text-xs text-amber-600 mb-2">⚠️ Chỉnh sửa này chỉ áp dụng riêng cho hợp đồng này, không thay đổi thông tin gốc của bên bán.</p>
-                  <CustomerForm companyLabel="Tên công ty" withShortName init={seller}
-                    onSave={(form) => { setSellerOverride(form); setEditingSeller(false); }}
-                    onCancel={() => setEditingSeller(false)} />
-                </div>
-              )}
+              {sellerId && <PartyInfoCard title="Thông tin Bên Bán (tự điền)" p={seller} extra={seller.shortName ? <span className="text-gray-400 font-normal"> • Viết tắt: {seller.shortName}</span> : null} />}
             </div>
           )}
 
