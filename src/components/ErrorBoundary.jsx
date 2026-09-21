@@ -20,6 +20,19 @@ export default class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, info) {
     console.error('ErrorBoundary bắt được lỗi:', error, info?.componentStack);
+    // Sau mỗi lần deploy, tên file chunk đổi hash → tab đang mở từ bản cũ import file không còn tồn tại
+    // (Vercel trả index.html thay vì JS). Tải lại trang là lấy được bản mới; chỉ tự reload 1 lần / 1 phút
+    // để không lặp vô hạn nếu lỗi thật sự là do nguyên nhân khác.
+    const msg = String(error?.message || '');
+    if (/dynamically imported module|Importing a module script failed|Loading chunk|error loading dynamically/i.test(msg)) {
+      try {
+        const last = Number(sessionStorage.getItem('chunk_reload_at') || 0);
+        if (Date.now() - last > 60000) {
+          sessionStorage.setItem('chunk_reload_at', String(Date.now()));
+          window.location.reload();
+        }
+      } catch { /* sessionStorage bị chặn: bỏ qua, người dùng bấm Tải lại trang thủ công */ }
+    }
   }
 
   handleRetry = () => {
