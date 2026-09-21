@@ -442,7 +442,7 @@ export const api = {
 
   // Cập nhật 1 cột trong nhóm "theo dõi hồ sơ SALE GỬI / NHÂN SỰ GỬI / KẾ TOÁN NHẬN" — Sale (không
   // chỉ Admin) sửa được, nhưng có policy + trigger riêng trong Supabase chặn non-admin sửa các
-  // cột invoice_goods khác (số tiền, hàng hóa, ghi chú...). Whitelist tên cột để tránh nhận field
+  // cột invoice_goods khác (số tiền, hàng hóa...). Whitelist tên cột để tránh nhận field
   // lạ từ UI (không phải để chặn quyền — quyền đã do DB tự lo).
   async updateInvoiceGoodsWorkflowField(id, field, value) {
     if (!INVOICE_GOODS_WORKFLOW_FIELDS.includes(field)) throw new Error('Cột không hợp lệ: ' + field);
