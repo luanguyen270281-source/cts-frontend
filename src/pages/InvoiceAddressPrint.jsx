@@ -16,7 +16,7 @@ const LABEL_FRAME_STYLE = `
 `;
 
 const PRINT_STYLE = `
-  @page { size: A4 portrait; margin: 12mm 15mm; }
+  @page { size: A4 portrait; margin: 10mm 12mm; }
   body { font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.6; background: #fff; color: #000; margin: 0; padding: 0; }
   ${LABEL_FRAME_STYLE}
   tr, td { page-break-inside: avoid !important; break-inside: avoid !important; }
@@ -47,7 +47,7 @@ const findSeller = (sellers, inv) => {
 // đầu mỗi tem đã đủ để nhận biết ranh giới giữa các hóa đơn), khoảng cách trên/dưới đều nhau và rộng
 // rãi hơn 1 chút (tận dụng khoảng trắng dư của khổ A4 thay vì cố nén sát cho gọn).
 const CutLine = () => (
-  <div style={{ margin: '20px 0', borderTop: '1px dashed #999' }} />
+  <div style={{ margin: '14px 0', borderTop: '1px dashed #999' }} />
 );
 
 const AddressBox = ({ title, name, address, phone }) => (
