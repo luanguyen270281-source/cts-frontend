@@ -92,8 +92,9 @@ const AddressSheet = ({ inv, customers, sellers }) => {
 
   return (
     <div>
-      {/* Dòng này chỉ để biết tem của hóa đơn nào — không dán lên hàng, sẽ bị cắt bỏ. */}
-      <p style={{ margin: 0 }}><b>Số hóa đơn:</b> {inv.invoice_no} &nbsp;&nbsp; <b>Ngày:</b> {inv.invoice_date || '—'}</p>
+      {/* Dòng này chỉ để biết tem của hóa đơn nào — không dán lên hàng, sẽ bị cắt bỏ. Cỡ chữ to +
+          đậm hẳn lên để dễ nhận ra ngay, không cần đọc kỹ mới phân biệt được tem nào của hóa đơn nào. */}
+      <p style={{ margin: 0, fontSize: 20, fontWeight: 'bold' }}>Số hóa đơn: {inv.invoice_no} &nbsp;&nbsp; Ngày: {inv.invoice_date || '—'}</p>
       <CutLine />
       <AddressLabel
         sender={{ name: senderName, address: senderAddress, phone: senderPhone }}
