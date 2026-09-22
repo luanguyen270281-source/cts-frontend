@@ -91,7 +91,10 @@ const AddressSheet = ({ inv, customers, sellers }) => {
 
   return (
     <div>
-      <p style={{ margin: '0 0 14px' }}><b>Số hóa đơn:</b> {inv.invoice_no} &nbsp;&nbsp; <b>Ngày:</b> {inv.invoice_date || '—'}</p>
+      {/* Dòng này chỉ để biết tem của hóa đơn nào — không dán lên hàng, sẽ bị cắt bỏ, nên chỉ ngăn
+          bằng đường mảnh (không phải đường đậm ranh giới giữa 2 hóa đơn). */}
+      <p style={{ margin: 0 }}><b>Số hóa đơn:</b> {inv.invoice_no} &nbsp;&nbsp; <b>Ngày:</b> {inv.invoice_date || '—'}</p>
+      <CutLine />
       <AddressLabel
         sender={{ name: senderName, address: senderAddress, phone: senderPhone }}
         receiver={{ name: receiverName, address: receiverAddress, phone: receiverPhone }}
