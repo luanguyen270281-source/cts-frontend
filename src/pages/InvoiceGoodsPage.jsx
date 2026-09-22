@@ -5,6 +5,7 @@ import { fmtNum } from '../helpers';
 import { api } from '../lib/api';
 import { Pagination } from '../components/Pagination';
 import { InvoiceGoodsBulkViewer } from './InvoiceGoodsBulkViewer';
+import { InvoiceAddressPrint } from './InvoiceAddressPrint';
 import { SearchableSelect } from '../components/SearchableSelect';
 import * as XLSX from 'xlsx';
 
@@ -57,7 +58,7 @@ const WORKFLOW_EDITABLE_BY = {
   hr: ['hr_sent', 'hr_sent_date'],
 };
 
-export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin = false, isHR = false }) => {
+export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin = false, isHR = false, customers = {}, sellers = {} }) => {
   const canEdit = (field) => isAdmin || WORKFLOW_EDITABLE_BY[isHR ? 'hr' : 'sale'].includes(field);
   const [search, setSearch] = useState('');
   const [sellerFilter, setSellerFilter] = useState('');
@@ -71,6 +72,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
   const [importProgress, setImportProgress] = useState(null); // { done, total } | null
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [addressPrintOpen, setAddressPrintOpen] = useState(false);
   const fileRef = useRef(null);
 
   const [rows, setRows] = useState([]);
@@ -645,6 +647,9 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
             <button onClick={() => setBulkOpen(true)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700">
               🖨️ In gộp
             </button>
+            <button onClick={() => setAddressPrintOpen(true)} className="bg-blue-50 text-blue-700 border border-blue-200 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-100">
+              🏷️ In tem gửi/nhận
+            </button>
             <button onClick={handleDeleteMany} className="bg-red-50 text-red-600 border border-red-200 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-red-100">
               🗑️ Xóa gộp
             </button>
@@ -654,6 +659,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
       )}
 
       {bulkOpen && <InvoiceGoodsBulkViewer invoices={selectedInvoices} onClose={() => setBulkOpen(false)} />}
+      {addressPrintOpen && <InvoiceAddressPrint invoices={selectedInvoices} customers={customers} sellers={sellers} onClose={() => setAddressPrintOpen(false)} />}
 
       {/* 1 khối card duy nhất (viền/bo góc/đổ bóng dùng chung) chứa: thanh cuộn ngang mảnh giả ở
           trên (không phải phần tử cuộn thật — xem giải thích ở khai báo topTrackRef phía trên) +

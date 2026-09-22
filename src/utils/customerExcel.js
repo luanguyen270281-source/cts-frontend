@@ -18,6 +18,8 @@ const HEADER_ALIASES = {
   bankName: ['nganhang', 'tennganhang'],
   representative: ['nguoidaidien', 'daidien'],
   position: ['chucvu'],
+  receiverName: ['tennguoinhan', 'nguoinhan', 'nguoinhanhang'],
+  receivingAddress: ['diachinhan', 'diachinhanhang'],
   saleCode: ['masale'],
   saleName: ['tensale'],
   departmentName: ['phongban'],
@@ -52,7 +54,8 @@ function findHeaderRow(raw) {
 
 export const TEMPLATE_HEADERS = [
   'Mã KH', 'Tên công ty / HKD', 'Địa chỉ', 'Mã số thuế', 'Số điện thoại', 'Email',
-  'Số tài khoản', 'Ngân hàng', 'Người đại diện', 'Chức vụ', 'Mã Sale', 'Tên Sale', 'Phòng ban',
+  'Số tài khoản', 'Ngân hàng', 'Người đại diện', 'Chức vụ', 'Tên người nhận', 'Địa chỉ nhận',
+  'Mã Sale', 'Tên Sale', 'Phòng ban',
 ];
 
 // Tải file mẫu Excel để điền
@@ -60,6 +63,7 @@ export function downloadCustomerTemplate() {
   const example = [
     'KH001', 'CÔNG TY TNHH VÍ DỤ', '123 Đường ABC, Quận 1, TP.HCM', '0312345678',
     '0901234567', 'contact@vidu.com', '19012345678', 'Vietcombank', 'Nguyễn Văn A', 'Giám đốc',
+    'Trần Thị C', '456 Đường XYZ, Quận 2, TP.HCM',
     'CTS01', 'Nguyễn Thị B', 'Phòng Kinh doanh 1',
   ];
   const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, example]);
@@ -143,6 +147,8 @@ export async function parseCustomersFile(file, departments = {}, saleProfiles = 
         bankName: obj.bankName || '',
         representative: obj.representative || '',
         position: obj.position || '',
+        receiverName: obj.receiverName || '',
+        receivingAddress: obj.receivingAddress || '',
         assignedSale: { code: saleProfile.ma_sale || '', name: saleProfile.name || '', accountId: saleProfile.uuid || '' },
         departmentId,
       },
@@ -167,6 +173,8 @@ export function exportCustomersToExcel(entries, departments = {}) {
     'Ngân hàng': c.bankName || '',
     'Người đại diện': c.representative || '',
     'Chức vụ': c.position || '',
+    'Tên người nhận': c.receiverName || '',
+    'Địa chỉ nhận': c.receivingAddress || '',
     'Mã Sale': c.assignedSale?.code || '',
     'Tên Sale': c.assignedSale?.name || '',
     'Phòng ban': deptName(c.departmentId),

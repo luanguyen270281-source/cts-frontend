@@ -39,6 +39,7 @@ const blankBranch = () => ({
   id: genBranchId(), // để nhận diện đúng nhánh, không dựa vào Mã số thuế (có thể để trống/trùng nhau)
   taxCode: '', companyName: '', companyNameEN: '', address: '', addressEN: '', phone: '', email: '',
   bankAccount: '', bankName: '', representative: '', representativeEN: '', position: '', positionEN: '',
+  receiverName: '', receivingAddress: '',
 });
 // Bản cũ chỉ lưu {taxCode, name} và chưa có "id" — chuyển "name" thành "companyName", tự cấp thêm "id" ổn định
 // cho các nhánh cũ chưa có, để không mất dữ liệu đã nhập trước đó.
@@ -48,6 +49,7 @@ export const CustomerForm = ({ init, onSave, onCancel, companyLabel = 'Tên côn
   const blank = {
     companyName: '', companyNameEN: '', address: '', addressEN: '', taxCode: '', phone: '', email: '',
     bankAccount: '', bankName: '', representative: '', representativeEN: '', position: '', positionEN: '',
+    receiverName: '', receivingAddress: '',
     branches: [], // Mã nhánh — 1 khách hàng gốc có thể có nhiều nhánh, mỗi nhánh có đủ thông tin riêng như khách hàng gốc
     ...(withShortName ? { shortName: '' } : {}),
     ...(withAssignment ? { assignedSale: autoSaleAssign || { code: '', name: '', accountId: '' }, departmentId: '' } : {}),
@@ -129,6 +131,8 @@ export const CustomerForm = ({ init, onSave, onCancel, companyLabel = 'Tên côn
         <Field label="Mã số thuế (gốc)" value={form.taxCode} onChange={upd('taxCode')} />
         <Field label="Số điện thoại" value={form.phone} onChange={upd('phone')} />
         <Field label="Email" value={form.email} onChange={upd('email')} type="email" />
+        <Field label="Tên người nhận hàng" value={form.receiverName} onChange={upd('receiverName')} />
+        <Field label="Địa chỉ nhận hàng" value={form.receivingAddress} onChange={upd('receivingAddress')} cols={2} />
         <Field label="Số tài khoản" value={form.bankAccount} onChange={upd('bankAccount')} />
         <Field label="Ngân hàng" value={form.bankName} onChange={upd('bankName')} cols={2} />
         <Field label="Người đại diện" value={form.representative} onChange={upd('representative')} />
@@ -199,6 +203,8 @@ export const CustomerForm = ({ init, onSave, onCancel, companyLabel = 'Tên côn
                         <Field label="Mã số thuế nhánh" value={b.taxCode} onChange={v => updBranch(i, 'taxCode', v)} />
                         <Field label="Số điện thoại" value={b.phone} onChange={v => updBranch(i, 'phone', v)} />
                         <Field label="Email" value={b.email} onChange={v => updBranch(i, 'email', v)} type="email" />
+                        <Field label="Tên người nhận hàng" value={b.receiverName} onChange={v => updBranch(i, 'receiverName', v)} />
+                        <Field label="Địa chỉ nhận hàng" value={b.receivingAddress} onChange={v => updBranch(i, 'receivingAddress', v)} cols={2} />
                         <Field label="Số tài khoản" value={b.bankAccount} onChange={v => updBranch(i, 'bankAccount', v)} />
                         <Field label="Ngân hàng" value={b.bankName} onChange={v => updBranch(i, 'bankName', v)} cols={2} />
                         <Field label="Người đại diện" value={b.representative} onChange={v => updBranch(i, 'representative', v)} />

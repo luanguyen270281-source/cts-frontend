@@ -1,5 +1,5 @@
 // File: src/pages/CustomersPage.jsx
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useLayoutEffect } from 'react';
 import { Badge } from '../components/Badge';
 import { CustomerForm } from './CustomerForm';
 import { Pagination } from '../components/Pagination';
@@ -17,6 +17,18 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
   const [importing, setImporting] = useState(false);
   const [pageNum, setPageNum] = useState(1);
   const fileInputRef = useRef(null);
+
+  // ── Thanh cuộn ngang phụ ở TRÊN đầu bảng — bảng đã có thêm cột (SĐT, Người nhận, Địa chỉ
+  // nhận) nên rộng hơn khung nhìn; cơ chế y hệt InvoiceGoodsPage.jsx/ContractListPage.jsx: thanh
+  // trên KHÔNG PHẢI phần tử cuộn thật (không overflow-x-auto riêng) mà chỉ là 1 track tĩnh + 1
+  // "thumb" tự vẽ, đồng bộ 1 chiều bằng cách đọc/ghi trực tiếp scrollLeft của bảng thật — tránh
+  // giật do 2 scrollbar thật đồng bộ qua lại.
+  const topTrackRef = useRef(null);
+  const topThumbRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const tableElRef = useRef(null);
+  const [tableRenderWidth, setTableRenderWidth] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   // Sale tự tạo khách hàng → tự gán vào chính họ, không cần chọn
   const autoSaleAssign = !isAdmin && profile && profile.role !== 'hr'
@@ -91,6 +103,60 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
 
   const handleExport = () => exportCustomersToExcel(filtered, departments);
 
+  useLayoutEffect(() => {
+    const tableEl = tableElRef.current;
+    const containerEl = tableScrollRef.current;
+    if (!tableEl || !containerEl || typeof ResizeObserver === 'undefined') return;
+    const roTable = new ResizeObserver(([entry]) => setTableRenderWidth(entry.contentRect.width));
+    const roContainer = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width));
+    roTable.observe(tableEl);
+    roContainer.observe(containerEl);
+    return () => { roTable.disconnect(); roContainer.disconnect(); };
+  }, [paged.length]);
+
+  const needsHScroll = containerWidth > 0 && tableRenderWidth > containerWidth + 1;
+  const topThumbPct = tableRenderWidth > 0 ? Math.min(100, (containerWidth / tableRenderWidth) * 100) : 100;
+
+  const updateTopThumb = () => {
+    const track = topTrackRef.current;
+    const thumb = topThumbRef.current;
+    const table = tableScrollRef.current;
+    if (!track || !thumb || !table) return;
+    const maxThumbLeft = track.clientWidth - thumb.clientWidth;
+    const maxScrollLeft = table.scrollWidth - table.clientWidth;
+    const ratio = maxScrollLeft > 0 ? Math.min(1, Math.max(0, table.scrollLeft / maxScrollLeft)) : 0;
+    thumb.style.transform = `translateX(${ratio * Math.max(0, maxThumbLeft)}px)`;
+  };
+  useLayoutEffect(() => { updateTopThumb(); });
+
+  const startTopDrag = (e) => {
+    e.preventDefault();
+    const track = topTrackRef.current;
+    const thumb = topThumbRef.current;
+    const table = tableScrollRef.current;
+    if (!track || !thumb || !table) return;
+    const trackRect = track.getBoundingClientRect();
+    const thumbWidth = thumb.clientWidth;
+    const maxThumbLeft = trackRect.width - thumbWidth;
+    const maxScrollLeft = table.scrollWidth - table.clientWidth;
+    if (maxThumbLeft <= 0 || maxScrollLeft <= 0) return;
+
+    const moveTo = (clientX) => {
+      const x = clientX - trackRect.left - thumbWidth / 2;
+      const clamped = Math.min(Math.max(x, 0), maxThumbLeft);
+      table.scrollLeft = (clamped / maxThumbLeft) * maxScrollLeft;
+    };
+    moveTo(e.clientX);
+
+    const onMove = (ev) => moveTo(ev.clientX);
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -141,15 +207,33 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
       {filtered.length > 0 && (
         <div className="text-xs text-gray-400 mb-2">Tìm thấy {filtered.length} khách hàng</div>
       )}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {paged.length > 0 && needsHScroll && (
+          <div
+            ref={topTrackRef}
+            onMouseDown={startTopDrag}
+            className="relative border-b border-gray-200 bg-gray-100 cursor-pointer"
+            style={{ height: 14 }}
+          >
+            <div
+              ref={topThumbRef}
+              className="absolute top-0 left-0 h-full rounded-lg hover:opacity-80"
+              style={{ width: `${topThumbPct}%`, background: '#93c5fd', border: '3px solid #f3f4f6', boxSizing: 'border-box' }}
+            />
+          </div>
+        )}
         {filtered.length === 0 ? (
           <div className="p-10 text-center text-gray-400">Không có khách hàng nào</div>
         ) : (
-          <table className="w-full text-sm min-w-[760px]">
+          <div ref={tableScrollRef} onScroll={updateTopThumb} className="overflow-x-auto wide-table-scroll">
+          <table ref={tableElRef} className="w-full text-sm min-w-[1100px]">
             <thead><tr className="bg-gray-50 text-gray-500 text-xs uppercase">
               <th className="text-left px-5 py-3 w-14">STT</th>
               <th className="text-left px-5 py-3">Mã KH (gốc)</th>
               <th className="text-left px-5 py-3">Tên công ty / HKD</th>
+              <th className="text-left px-5 py-3">SĐT</th>
+              <th className="text-left px-5 py-3">Tên người nhận</th>
+              <th className="text-left px-5 py-3">Địa chỉ nhận</th>
               <th className="text-left px-5 py-3">Người đại diện</th>
               <th className="text-left px-5 py-3">Mã Sale</th>
               <th className="text-left px-5 py-3">Tên Sale</th>
@@ -159,7 +243,7 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
             <tbody>
               {paged.map(([id, c], idx) => (
                 editId === id ? (
-                  <tr key={id}><td colSpan="8" className="p-5 bg-blue-50/30 border-t border-gray-100">
+                  <tr key={id}><td colSpan="11" className="p-5 bg-blue-50/30 border-t border-gray-100">
                     <div className="text-sm font-medium text-blue-700 mb-3">{id}</div>
                     <CustomerForm companyLabel="Tên công ty / HKD" withAssignment departments={departments} saleProfiles={isAdmin ? saleProfiles : []} autoSaleAssign={autoSaleAssign} init={c} onSave={handleEdit} onCancel={() => setEditId(null)} />
                   </td></tr>
@@ -183,6 +267,9 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
                         <div><span className="text-gray-400">Người đại diện: </span>{c.representative || '—'}{c.position ? ` (${c.position})` : ''}</div>
                       </div>
                     </td>
+                    <td className="px-5 py-3 text-gray-600">{c.phone || '–'}</td>
+                    <td className="px-5 py-3 text-gray-600">{c.receiverName ? (c.companyName ? `${c.receiverName} (${c.companyName})` : c.receiverName) : '–'}</td>
+                    <td className="px-5 py-3 text-gray-600">{c.receivingAddress || '–'}</td>
                     <td className="px-5 py-3 text-gray-600">{c.representative || '–'}</td>
                     <td className="px-5 py-3 text-gray-600 font-mono">{c.assignedSale?.code || '–'}</td>
                     <td className="px-5 py-3 text-gray-600">{c.assignedSale?.name || '–'}</td>
@@ -196,6 +283,7 @@ export const CustomersPage = ({ customers, departments = {}, onSave, onDelete, o
               ))}
             </tbody>
           </table>
+          </div>
         )}
         <Pagination page={safePageNum} maxPage={maxPage} onChange={setPageNum} />
       </div>
