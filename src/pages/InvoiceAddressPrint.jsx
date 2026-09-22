@@ -41,26 +41,12 @@ const findSeller = (sellers, inv) => {
 };
 
 // Ngoài thực tế, Người gửi và Người nhận là 2 tem dán ở 2 vị trí riêng trên kiện hàng (không dán
-// chung 1 chỗ) — nên mỗi bên là 1 khung riêng, có đường "cắt tại đây" ở giữa để tách rời. Khoảng
-// cách trên/dưới GIỐNG NHAU cho mọi đường cắt (nhìn đều nhau), nhưng đường cắt "major" (ngăn giữa 2
-// HÓA ĐƠN khác nhau) đậm/rõ hơn hẳn đường cắt "minor" (ngăn Gửi/Nhận trong cùng 1 hóa đơn) — để mắt
-// dễ nhận ra ranh giới giữa các hóa đơn, không bị lẫn với ranh giới Gửi/Nhận.
+// chung 1 chỗ) — nên mỗi bên là 1 khung riêng, có đường kẻ ở giữa để tách rời. KHÔNG chữ đè lên
+// đường kẻ (từng có chữ "cắt tại đây" nhưng cắt kéo ngay trên chữ sẽ bị lẹm chữ, không thực tế) —
+// chỉ phân biệt 2 loại ranh giới bằng độ đậm: đường "major" (ngăn giữa 2 HÓA ĐƠN khác nhau) đậm hơn
+// hẳn đường "minor" (ngăn Gửi/Nhận trong cùng 1 hóa đơn).
 const CutLine = ({ major = false }) => (
-  // height:0 + span "position:absolute" (thay vì "relative") — chữ nhãn không còn chiếm chỗ theo
-  // dòng chảy văn bản nữa (bị đẩy lệch xuống dưới đường kẻ trước đây), nên margin trên/dưới của
-  // khối này giờ đối xứng thật sự, đều bằng đúng 14px mỗi bên.
-  <div style={{
-    position: 'relative', height: 0, margin: '14px 0',
-    borderTop: major ? '3px dashed #333' : '1px dashed #bbb',
-  }}>
-    <span style={{
-      position: 'absolute', left: '50%', top: 0, transform: 'translate(-50%, -50%)', whiteSpace: 'nowrap',
-      background: '#fff', padding: '0 10px',
-      color: major ? '#333' : '#999', fontSize: major ? 12 : 11, fontWeight: major ? 'bold' : 'normal',
-    }}>
-      {major ? '✂ ── HÓA ĐƠN KHÁC — CẮT TẠI ĐÂY ──' : '✂ cắt tại đây'}
-    </span>
-  </div>
+  <div style={{ margin: '14px 0', borderTop: major ? '3px dashed #333' : '1px dashed #bbb' }} />
 );
 
 const AddressBox = ({ title, name, address, phone }) => (
