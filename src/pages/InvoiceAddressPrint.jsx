@@ -41,10 +41,19 @@ const findSeller = (sellers, inv) => {
 };
 
 // Ngoài thực tế, Người gửi và Người nhận là 2 tem dán ở 2 vị trí riêng trên kiện hàng (không dán
-// chung 1 chỗ) — nên mỗi bên là 1 khung riêng, có đường "cắt tại đây" ở giữa để tách rời.
-const CutLine = () => (
-  <div style={{ textAlign: 'center', color: '#888', fontSize: 11, margin: '10px 0', borderTop: '1px dashed #999', position: 'relative' }}>
-    <span style={{ background: '#fff', padding: '0 10px', position: 'relative', top: -9 }}>✂ cắt tại đây</span>
+// chung 1 chỗ) — nên mỗi bên là 1 khung riêng, có đường "cắt tại đây" ở giữa để tách rời. Khoảng
+// cách trên/dưới GIỐNG NHAU cho mọi đường cắt (nhìn đều nhau), nhưng đường cắt "major" (ngăn giữa 2
+// HÓA ĐƠN khác nhau) đậm/rõ hơn hẳn đường cắt "minor" (ngăn Gửi/Nhận trong cùng 1 hóa đơn) — để mắt
+// dễ nhận ra ranh giới giữa các hóa đơn, không bị lẫn với ranh giới Gửi/Nhận.
+const CutLine = ({ major = false }) => (
+  <div style={{
+    textAlign: 'center', margin: '14px 0', position: 'relative',
+    borderTop: major ? '3px dashed #333' : '1px dashed #bbb',
+    color: major ? '#333' : '#999', fontSize: major ? 12 : 11, fontWeight: major ? 'bold' : 'normal',
+  }}>
+    <span style={{ background: '#fff', padding: '0 10px', position: 'relative', top: -10 }}>
+      {major ? '✂ ── HÓA ĐƠN KHÁC — CẮT TẠI ĐÂY ──' : '✂ cắt tại đây'}
+    </span>
   </div>
 );
 
@@ -90,7 +99,7 @@ const AddressSheet = ({ inv, customers, sellers }) => {
 
   return (
     <div>
-      <p style={{ margin: '0 0 8px' }}><b>Số hóa đơn:</b> {inv.invoice_no} &nbsp;&nbsp; <b>Ngày:</b> {inv.invoice_date || '—'}</p>
+      <p style={{ margin: '0 0 14px' }}><b>Số hóa đơn:</b> {inv.invoice_no} &nbsp;&nbsp; <b>Ngày:</b> {inv.invoice_date || '—'}</p>
       <AddressLabel
         sender={{ name: senderName, address: senderAddress, phone: senderPhone }}
         receiver={{ name: receiverName, address: receiverAddress, phone: receiverPhone }}
@@ -140,7 +149,7 @@ export const InvoiceAddressPrint = ({ invoices, customers, sellers, onClose }) =
         <div className="p-10" id="invoice-address-print-zone">
           {invoices.map((inv, i) => (
             <div key={inv.id}>
-              {i > 0 && <CutLine />}
+              {i > 0 && <CutLine major />}
               <div className="bulk-item">
                 <AddressSheet inv={inv} customers={customers} sellers={sellers} />
               </div>
