@@ -42,11 +42,12 @@ const findSeller = (sellers, inv) => {
 
 // Ngoài thực tế, Người gửi và Người nhận là 2 tem dán ở 2 vị trí riêng trên kiện hàng (không dán
 // chung 1 chỗ) — nên mỗi bên là 1 khung riêng, có đường kẻ ở giữa để tách rời. KHÔNG chữ đè lên
-// đường kẻ (từng có chữ "cắt tại đây" nhưng cắt kéo ngay trên chữ sẽ bị lẹm chữ, không thực tế) —
-// chỉ phân biệt 2 loại ranh giới bằng độ đậm: đường "major" (ngăn giữa 2 HÓA ĐƠN khác nhau) đậm hơn
-// hẳn đường "minor" (ngăn Gửi/Nhận trong cùng 1 hóa đơn).
-const CutLine = ({ major = false }) => (
-  <div style={{ margin: '14px 0', borderTop: major ? '3px dashed #333' : '1px dashed #bbb' }} />
+// đường kẻ (từng có chữ "cắt tại đây" nhưng cắt kéo ngay trên chữ sẽ bị lẹm chữ, không thực tế).
+// 1 kiểu đường kẻ duy nhất cho mọi ranh giới (không phân biệt đậm/nhạt nữa — dòng "Số hóa đơn" ở
+// đầu mỗi tem đã đủ để nhận biết ranh giới giữa các hóa đơn), khoảng cách trên/dưới đều nhau và rộng
+// rãi hơn 1 chút (tận dụng khoảng trắng dư của khổ A4 thay vì cố nén sát cho gọn).
+const CutLine = () => (
+  <div style={{ margin: '20px 0', borderTop: '1px dashed #999' }} />
 );
 
 const AddressBox = ({ title, name, address, phone }) => (
@@ -91,8 +92,7 @@ const AddressSheet = ({ inv, customers, sellers }) => {
 
   return (
     <div>
-      {/* Dòng này chỉ để biết tem của hóa đơn nào — không dán lên hàng, sẽ bị cắt bỏ, nên chỉ ngăn
-          bằng đường mảnh (không phải đường đậm ranh giới giữa 2 hóa đơn). */}
+      {/* Dòng này chỉ để biết tem của hóa đơn nào — không dán lên hàng, sẽ bị cắt bỏ. */}
       <p style={{ margin: 0 }}><b>Số hóa đơn:</b> {inv.invoice_no} &nbsp;&nbsp; <b>Ngày:</b> {inv.invoice_date || '—'}</p>
       <CutLine />
       <AddressLabel
@@ -144,7 +144,7 @@ export const InvoiceAddressPrint = ({ invoices, customers, sellers, onClose }) =
         <div className="p-10" id="invoice-address-print-zone">
           {invoices.map((inv, i) => (
             <div key={inv.id}>
-              {i > 0 && <CutLine major />}
+              {i > 0 && <CutLine />}
               <div className="bulk-item">
                 <AddressSheet inv={inv} customers={customers} sellers={sellers} />
               </div>
