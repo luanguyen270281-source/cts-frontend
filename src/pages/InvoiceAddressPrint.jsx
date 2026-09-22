@@ -22,8 +22,6 @@ const PRINT_STYLE = `
   tr, td { page-break-inside: avoid !important; break-inside: avoid !important; }
   .no-print { display: none !important; }
   .bulk-item { break-inside: avoid; page-break-inside: avoid; }
-  .cut-line { text-align: center; color: #888; font-size: 11px; margin: 16px 0; border-top: 1px dashed #999; position: relative; }
-  .cut-line span { background: #fff; padding: 0 10px; position: relative; top: -9px; }
 `;
 
 // Đối chiếu bên bán của hóa đơn với danh sách "sellers" — hóa đơn chỉ lưu tên/MST dạng chuỗi
@@ -42,19 +40,31 @@ const findSeller = (sellers, inv) => {
   return null;
 };
 
-// 1 khung ngoài duy nhất, liệt kê đều 6 dòng (không cần vạch ngăn cách đậm giữa Người gửi/Người nhận).
-const AddressLabel = ({ sender, receiver }) => (
+// Ngoài thực tế, Người gửi và Người nhận là 2 tem dán ở 2 vị trí riêng trên kiện hàng (không dán
+// chung 1 chỗ) — nên mỗi bên là 1 khung riêng, có đường "cắt tại đây" ở giữa để tách rời.
+const CutLine = () => (
+  <div style={{ textAlign: 'center', color: '#888', fontSize: 11, margin: '10px 0', borderTop: '1px dashed #999', position: 'relative' }}>
+    <span style={{ background: '#fff', padding: '0 10px', position: 'relative', top: -9 }}>✂ cắt tại đây</span>
+  </div>
+);
+
+const AddressBox = ({ title, name, address, phone }) => (
   <div className="label-frame">
     <table>
       <tbody>
-        <tr><td style={{ width: 120 }}><b>Người gửi:</b></td><td>{sender.name || '—'}</td></tr>
-        <tr><td><b>Địa chỉ:</b></td><td>{sender.address || '—'}</td></tr>
-        <tr><td><b>Điện thoại:</b></td><td>{sender.phone || '—'}</td></tr>
-        <tr><td><b>Người nhận:</b></td><td>{receiver.name || '—'}</td></tr>
-        <tr><td><b>Địa chỉ:</b></td><td>{receiver.address || '—'}</td></tr>
-        <tr><td><b>Điện thoại:</b></td><td>{receiver.phone || '—'}</td></tr>
+        <tr><td style={{ width: 120 }}><b>{title}:</b></td><td>{name || '—'}</td></tr>
+        <tr><td><b>Địa chỉ:</b></td><td>{address || '—'}</td></tr>
+        <tr><td><b>Điện thoại:</b></td><td>{phone || '—'}</td></tr>
       </tbody>
     </table>
+  </div>
+);
+
+const AddressLabel = ({ sender, receiver }) => (
+  <div>
+    <AddressBox title="Người gửi" name={sender.name} address={sender.address} phone={sender.phone} />
+    <CutLine />
+    <AddressBox title="Người nhận" name={receiver.name} address={receiver.address} phone={receiver.phone} />
   </div>
 );
 
@@ -130,11 +140,7 @@ export const InvoiceAddressPrint = ({ invoices, customers, sellers, onClose }) =
         <div className="p-10" id="invoice-address-print-zone">
           {invoices.map((inv, i) => (
             <div key={inv.id}>
-              {i > 0 && (
-                <div className="cut-line" style={{ textAlign: 'center', color: '#888', fontSize: 11, margin: '16px 0', borderTop: '1px dashed #999', position: 'relative' }}>
-                  <span style={{ background: '#fff', padding: '0 10px', position: 'relative', top: -9 }}>✂ cắt tại đây</span>
-                </div>
-              )}
+              {i > 0 && <CutLine />}
               <div className="bulk-item">
                 <AddressSheet inv={inv} customers={customers} sellers={sellers} />
               </div>
