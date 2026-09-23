@@ -88,9 +88,9 @@ const AddressSheet = ({ inv, customers, sellers, saleProfiles }) => {
   const sale = findSale(saleProfiles, inv);
 
   const companyOnlyName = seller?.companyName || inv.seller_name || '';
-  // Ghép "Tên sale ( Phòng ban ) - Tên công ty" để biết ngay hóa đơn của sale/phòng nào khi phân
+  // Ghép "Tên sale (Phòng ban) - Tên công ty" để biết ngay hóa đơn của sale/phòng nào khi phân
   // loại tem — sale không khớp được saleProfiles thì bỏ qua phần này, vẫn hiện đúng tên công ty.
-  const salePrefix = sale ? (sale.deptName ? `${sale.name} ( ${sale.deptName} )` : sale.name) : (inv.sale_name || '');
+  const salePrefix = sale ? (sale.deptName ? `${sale.name} (${sale.deptName})` : sale.name) : (inv.sale_name || '');
   const senderName = salePrefix ? `${salePrefix} - ${companyOnlyName}` : companyOnlyName;
   const senderAddress = SENDER_ADDRESS;
   const senderPhone = seller?.phone || '';
