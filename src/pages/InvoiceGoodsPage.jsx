@@ -454,6 +454,9 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
   };
 
   const [invoiceNoteDrafts, setInvoiceNoteDrafts] = useState({}); // { [id]: text đang gõ }
+  // Ô ghi chú nào đang được click vào — chỉ ô đó giãn cao ra để đọc hết nội dung dài, các ô còn lại
+  // (và trạng thái mặc định khi chưa click) vẫn giữ nguyên 1 dòng để không đổi độ cao hàng trong bảng.
+  const [expandedInvoiceNoteId, setExpandedInvoiceNoteId] = useState(null);
   const saveInvoiceNote = async (id, invoice_note) => {
     setRows(prev => prev.map(r => r.id === id ? { ...r, invoice_note } : r)); // cập nhật ngay trên giao diện
     setInvoiceNoteDrafts(prev => { const next = { ...prev }; delete next[id]; return next; });
@@ -851,12 +854,14 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                     {overdue && <div className="text-red-600 text-xs font-semibold mt-0.5" title="Đã trễ hạn">⚠️ Quá hạn</div>}
                   </td>
                   <td className="px-3 py-3">
-                    <input
+                    <textarea
                         value={invoiceNoteDrafts[inv.id] ?? inv.invoice_note ?? ''}
                         onChange={e => setInvoiceNoteDrafts(prev => ({ ...prev, [inv.id]: e.target.value }))}
-                        onBlur={e => { if (e.target.value !== (inv.invoice_note || '')) saveInvoiceNote(inv.id, e.target.value); }}
+                        onFocus={() => setExpandedInvoiceNoteId(inv.id)}
+                        onBlur={e => { setExpandedInvoiceNoteId(null); if (e.target.value !== (inv.invoice_note || '')) saveInvoiceNote(inv.id, e.target.value); }}
                         placeholder="Ghi chú hóa đơn..."
-                        className="w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                        rows={expandedInvoiceNoteId === inv.id ? 4 : 1}
+                        className="w-full border border-transparent hover:border-gray-300 focus:border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none leading-snug"
                       />
                   </td>
                   <td className="px-5 py-3 text-right"><button onClick={() => handleDeleteOne(inv.id)} className="text-red-500 hover:text-red-700">Xóa</button></td>
