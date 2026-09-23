@@ -635,7 +635,7 @@ export default function App() {
         </div>
       ) : <Dashboard customers={customers} stats={dashboardStats} setPage={setPage} />;
       case 'customers':    return <CustomersPage customers={customers} departments={departments} onSave={saveCustomer} onDelete={deleteCustomer} onBulkImport={bulkImportCustomers} saleProfiles={saleProfiles} isAdmin={isAdmin} profile={profile} />;
-      case 'invoice_goods': return <InvoiceGoodsPage onBulkImport={bulkImportInvoiceGoods} onDelete={deleteInvoiceGoodsRow} onDeleteMany={bulkDeleteInvoiceGoods} isAdmin={isAdmin} isHR={isHR} customers={customers} sellers={sellers} />;
+      case 'invoice_goods': return <InvoiceGoodsPage onBulkImport={bulkImportInvoiceGoods} onDelete={deleteInvoiceGoodsRow} onDeleteMany={bulkDeleteInvoiceGoods} isAdmin={isAdmin} isHR={isHR} customers={customers} sellers={sellers} saleProfiles={saleProfiles} />;
       case 'cash_flow': return <CashFlowSummary batches={cashFlowBatches} customers={customers} sellers={sellers} isAdmin={isAdmin} saleProfiles={saleProfiles} onSave={saveCashFlowBatch} onDelete={deleteCashFlowBatchRow}
           onOpenPaymentRequest={(customerId, reqNo, batchIds) => { setPaymentRequestCustomerId(customerId); setPaymentRequestReqNo(reqNo ?? null); setPaymentRequestBatchIds(batchIds || null); setPage('payment_request'); }} />;
       case 'payment_request': return <PaymentRequestPrint

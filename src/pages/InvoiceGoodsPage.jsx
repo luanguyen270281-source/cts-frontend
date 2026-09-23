@@ -58,7 +58,7 @@ const WORKFLOW_EDITABLE_BY = {
   hr: ['hr_sent', 'hr_sent_date'],
 };
 
-export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin = false, isHR = false, customers = {}, sellers = {} }) => {
+export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin = false, isHR = false, customers = {}, sellers = {}, saleProfiles = [] }) => {
   const canEdit = (field) => isAdmin || WORKFLOW_EDITABLE_BY[isHR ? 'hr' : 'sale'].includes(field);
   const [search, setSearch] = useState('');
   const [sellerFilter, setSellerFilter] = useState('');
@@ -659,7 +659,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
       )}
 
       {bulkOpen && <InvoiceGoodsBulkViewer invoices={selectedInvoices} onClose={() => setBulkOpen(false)} />}
-      {addressPrintOpen && <InvoiceAddressPrint invoices={selectedInvoices} customers={customers} sellers={sellers} onClose={() => setAddressPrintOpen(false)} />}
+      {addressPrintOpen && <InvoiceAddressPrint invoices={selectedInvoices} customers={customers} sellers={sellers} saleProfiles={saleProfiles} onClose={() => setAddressPrintOpen(false)} />}
 
       {/* 1 khối card duy nhất (viền/bo góc/đổ bóng dùng chung) chứa: thanh cuộn ngang mảnh giả ở
           trên (không phải phần tử cuộn thật — xem giải thích ở khai báo topTrackRef phía trên) +

@@ -40,6 +40,14 @@ const findSeller = (sellers, inv) => {
   return null;
 };
 
+// Hóa đơn chỉ lưu "sale_name" dạng chuỗi (không có mã/id), nên dò tên này sang saleProfiles để
+// lấy thêm phòng ban (deptName) — không khớp được thì bỏ qua, không chặn hiển thị tên bên bán.
+const findSale = (saleProfiles, inv) => {
+  if (!inv.sale_name) return null;
+  const target = inv.sale_name.trim().toLowerCase();
+  return (saleProfiles || []).find((p) => (p.name || '').trim().toLowerCase() === target) || null;
+};
+
 // Ngoài thực tế, Người gửi và Người nhận là 2 tem dán ở 2 vị trí riêng trên kiện hàng (không dán
 // chung 1 chỗ) — nên mỗi bên là 1 khung riêng, có đường kẻ ở giữa để tách rời. KHÔNG chữ đè lên
 // đường kẻ (từng có chữ "cắt tại đây" nhưng cắt kéo ngay trên chữ sẽ bị lẹm chữ, không thực tế).
@@ -74,11 +82,16 @@ const AddressLabel = ({ sender, receiver }) => (
 // bán (mỗi hóa đơn có thể đứng tên pháp nhân bán khác nhau nhưng hàng đều gửi từ cùng 1 kho này).
 const SENDER_ADDRESS = 'Số 67 Đường 23, Thành Phố Giao Lưu, Đông Ngạc, Hà Nội';
 
-const AddressSheet = ({ inv, customers, sellers }) => {
+const AddressSheet = ({ inv, customers, sellers, saleProfiles }) => {
   const seller = findSeller(sellers, inv);
   const customer = (customers || {})[inv.customer_code] || null;
+  const sale = findSale(saleProfiles, inv);
 
-  const senderName = seller?.companyName || inv.seller_name || '';
+  const companyOnlyName = seller?.companyName || inv.seller_name || '';
+  // Ghép "Tên sale ( Phòng ban ) - Tên công ty" để biết ngay hóa đơn của sale/phòng nào khi phân
+  // loại tem — sale không khớp được saleProfiles thì bỏ qua phần này, vẫn hiện đúng tên công ty.
+  const salePrefix = sale ? (sale.deptName ? `${sale.name} ( ${sale.deptName} )` : sale.name) : (inv.sale_name || '');
+  const senderName = salePrefix ? `${salePrefix} - ${companyOnlyName}` : companyOnlyName;
   const senderAddress = SENDER_ADDRESS;
   const senderPhone = seller?.phone || '';
 
@@ -104,7 +117,7 @@ const AddressSheet = ({ inv, customers, sellers }) => {
   );
 };
 
-export const InvoiceAddressPrint = ({ invoices, customers, sellers, onClose }) => {
+export const InvoiceAddressPrint = ({ invoices, customers, sellers, saleProfiles, onClose }) => {
   const getFullHtml = (innerHTML) => {
     const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
       .map((el) => `<link rel="stylesheet" href="${el.href}">`).join('\n');
@@ -147,7 +160,7 @@ export const InvoiceAddressPrint = ({ invoices, customers, sellers, onClose }) =
             <div key={inv.id}>
               {i > 0 && <CutLine />}
               <div className="bulk-item">
-                <AddressSheet inv={inv} customers={customers} sellers={sellers} />
+                <AddressSheet inv={inv} customers={customers} sellers={sellers} saleProfiles={saleProfiles} />
               </div>
             </div>
           ))}
