@@ -292,19 +292,28 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
   const handleExportExcel = async () => {
     setExporting(true);
     try {
-      // Lấy toàn bộ dòng theo bộ lọc hiện tại (không phân trang) — chia lô 1000 để không quá tải
+      // Lấy toàn bộ dòng theo bộ lọc hiện tại (không phân trang), chia lô. Nếu 1 lô vẫn vượt
+      // statement timeout của Supabase (~8s, lỗi 500) → tự giảm cỡ lô rồi thử lại thay vì báo hỏng luôn.
       let all = [];
       let offset = 0;
-      const CHUNK = 1000;
+      let chunk = 1000;
+      const MIN_CHUNK = 25;
       while (true) {
-        const { rows } = await api.listInvoiceGoodsPaged({
-          search, seller: sellerFilter, sale: saleFilter, dateFrom, dateTo,
-          accountingReceived: accountingReceivedParam,
-          limit: CHUNK, offset,
-        });
+        let rows;
+        try {
+          ({ rows } = await api.listInvoiceGoodsPaged({
+            search, seller: sellerFilter, sale: saleFilter, dateFrom, dateTo,
+            accountingReceived: accountingReceivedParam,
+            limit: chunk, offset,
+          }));
+        } catch (err) {
+          if (chunk <= MIN_CHUNK) throw err;
+          chunk = Math.max(MIN_CHUNK, Math.floor(chunk / 2));
+          continue;
+        }
         all = all.concat(rows);
-        if (rows.length < CHUNK) break;
-        offset += CHUNK;
+        if (rows.length < chunk) break;
+        offset += chunk;
         if (offset > 100000) break; // chặn an toàn
       }
       // Lấy 9 cột theo dõi hồ sơ cho tất cả dòng, 1 lệnh gọi/lô.
