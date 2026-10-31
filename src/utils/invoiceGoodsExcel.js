@@ -16,6 +16,8 @@ const HEADER_ALIASES = {
   donGia: ['dongia'],
   thanhTien: ['thanhtien'],
   vatRate: ['thuesuat', 'thuesuatgtgt'],
+  tienThue: ['tienthuegtgt', 'tienthue'],
+  tongTien: ['tongtientt', 'tongtienthanhtoan', 'tongtien'],
   sellerName: ['tencongty'],
   sellerTaxCode: ['masothue'],
   note: ['ghichu'],
@@ -131,20 +133,30 @@ export async function parseInvoiceGoodsFile(file) {
     const g = groups[groupKey];
     const soLuong = Number(obj.soLuong) || 0;
     const donGia = Number(obj.donGia) || 0;
+    const thanhTien = Number(obj.thanhTien) || soLuong * donGia;
+    const vatRate = parsePercent(obj.vatRate);
+    // Ưu tiên Tiền thuế / Tổng tiền TT ghi sẵn trong file (đã khớp hóa đơn điện tử) — tự nhân
+    // Thành tiền × thuế suất sẽ ra số lẻ, làm tròn bị lệch 1đ so với hóa đơn thật.
+    const tienThue = obj.tienThue === '' || obj.tienThue === undefined
+      ? Math.round(thanhTien * vatRate / 100)
+      : Number(obj.tienThue) || 0;
+    const tongTien = Number(obj.tongTien) || thanhTien + tienThue;
     g.goods.push({
       stt: g.goods.length + 1,
       tenHang,
       dvt: String(obj.dvt || '').trim(),
       soLuong,
       donGia,
-      thanhTien: Number(obj.thanhTien) || soLuong * donGia,
-      vatRate: parsePercent(obj.vatRate),
+      thanhTien,
+      vatRate,
+      tienThue,
+      tongTien,
     });
   }
 
   const invoices = Object.values(groups).map((inv) => ({
     ...inv,
-    total: inv.goods.reduce((s, g) => s + (Number(g.thanhTien) || 0) * (1 + (Number(g.vatRate) || 0) / 100), 0),
+    total: inv.goods.reduce((s, g) => s + (Number(g.tongTien) || 0), 0),
   }));
 
   return { invoices, errors };
