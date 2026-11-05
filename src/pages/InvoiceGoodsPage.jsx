@@ -29,12 +29,16 @@ const COLS = [
   { key: 'count',    width: 130, min: 60,  resizable: true  },
   { key: 'total',    width: 130, min: 90,  resizable: true  },
   { key: 'note',     width: 200, min: 120, resizable: true  },
+  // Số HĐNT mua bán của đúng khách + đúng Công ty bán trên hóa đơn — chỉ đọc, tra từ bảng contracts.
+  { key: 'hdnt',     width: 190, min: 100, resizable: true  },
   // 9 cột theo dõi hồ sơ SALE GỬI → NHÂN SỰ GỬI → KẾ TOÁN NHẬN HỒ SƠ → KẾ TOÁN NHẬN HỢP ĐỒNG —
   // để cuối bảng, trước cột Xóa. Độ rộng các cột "Ngày ..." và "Hạn (số ngày)" đủ rộng để tiêu đề
   // nằm gọn 1 dòng, không xuống dòng lệch nhau giữa các cột (so le rất khó nhìn).
   { key: 'sale_sent',                width: 110, min: 90,  resizable: true },
   { key: 'sale_sent_date',           width: 160, min: 110, resizable: true },
-  { key: 'hr_sent',                  width: 110, min: 90,  resizable: true },
+  { key: 'sale_contract_sent',       width: 150, min: 100, resizable: true },
+  { key: 'sale_contract_sent_date',  width: 180, min: 110, resizable: true },
+  { key: 'hr_sent',                 width: 110, min: 90,  resizable: true },
   { key: 'hr_sent_date',             width: 190, min: 110, resizable: true },
   { key: 'accounting_received',      width: 110, min: 90,  resizable: true },
   { key: 'accounting_received_date', width: 190, min: 110, resizable: true },
@@ -54,9 +58,33 @@ const COLW_STORAGE_KEY = 'invoiceGoods.colWidths.v3';
 // list_invoice_goods_paged để lọc + phân trang ngay ở DB, chỉ tải đúng số dòng cần hiển thị.
 // Cột theo dõi hồ sơ mỗi vai trò được sửa: admin sửa hết (gồm 4 cột Kế toán), sale và HR chỉ sửa cột của mình.
 const WORKFLOW_EDITABLE_BY = {
-  sale: ['sale_sent', 'sale_sent_date', 'deadline_days'],
+  sale: ['sale_sent', 'sale_sent_date', 'sale_contract_sent', 'sale_contract_sent_date', 'deadline_days'],
   hr: ['hr_sent', 'hr_sent_date'],
 };
+
+// Ghép Số HĐNT (danh sách thô từ api.getHdntForInvoices) vào 1 hóa đơn:
+// - cùng khách hàng: khớp mã khách, không thì khớp tên công ty (không phân biệt hoa/thường, khoảng trắng 2 đầu)
+// - cùng Công ty bán: cả 2 bên có MST thì so MST (bỏ ký tự không phải chữ/số), không thì so tên.
+//   HĐ cũ thiếu sellerSnapshot thì lấy MST/tên từ danh sách Bên bán hiện tại theo sellerId.
+const normName = (s) => (s || '').trim().toLowerCase();
+const normTax = (s) => (s || '').replace(/[^0-9a-z]/gi, '').toLowerCase();
+function matchHdntNumbers(inv, hdntList, sellers = {}) {
+  const code = (inv.customer_code || '').trim();
+  const name = normName(inv.customer_name);
+  const invTax = normTax(inv.seller_tax_code);
+  const invSeller = normName(inv.seller_name);
+  const out = [];
+  for (const h of hdntList || []) {
+    const sameCustomer = (code && h.customer_id === code) || (name && h.customer_name_norm === name);
+    if (!sameCustomer) continue;
+    const s = sellers[h.seller_id] || {};
+    const tax = normTax(h.seller_tax_code || s.taxCode);
+    const sName = h.seller_name_norm || normName(s.companyName);
+    const sameSeller = (invTax && tax) ? invTax === tax : (!!invSeller && sName === invSeller);
+    if (sameSeller && !out.includes(h.contract_id)) out.push(h.contract_id);
+  }
+  return out;
+}
 
 export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin = false, isHR = false, customers = {}, sellers = {}, saleProfiles = [] }) => {
   const canEdit = (field) => isAdmin || WORKFLOW_EDITABLE_BY[isHR ? 'hr' : 'sale'].includes(field);
@@ -258,11 +286,19 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
       setPage(pageToLoad);
       // Lấy riêng 9 cột theo dõi hồ sơ cho các dòng vừa tải (không phụ thuộc hàm RPC). Nếu cột
       // chưa tồn tại trên DB thì bỏ qua, không làm hỏng danh sách.
+      // Cùng lúc tra Số HĐNT theo khách hàng (RPC riêng) — lỗi thì cột đó để trống, không ảnh hưởng gì khác.
       const ids = newRows.map(r => r.id).filter(Boolean);
       if (ids.length > 0) {
-        const extraMap = await api.getInvoiceGoodsExtraMap(ids).catch(() => ({}));
+        const [extraMap, hdntList] = await Promise.all([
+          api.getInvoiceGoodsExtraMap(ids).catch(() => ({})),
+          api.getHdntForInvoices(newRows).catch(e => { console.error('Không tra được Số HĐNT:', e.message); return null; }),
+        ]);
         if (myRequestId === requestIdRef.current) {
-          setRows(prev => prev.map(r => ({ ...r, ...(extraMap[r.id] || {}) })));
+          setRows(prev => prev.map(r => ({
+            ...r,
+            ...(extraMap[r.id] || {}),
+            ...(hdntList ? { hdnt_numbers: matchHdntNumbers(r, hdntList, sellers) } : {}),
+          })));
         }
       }
     } catch (e) {
@@ -276,7 +312,7 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
     } finally {
       if (myRequestId === requestIdRef.current) setLoading(false);
     }
-  }, [search, sellerFilter, saleFilter, dateFrom, dateTo, accountingReceivedParam]);
+  }, [search, sellerFilter, saleFilter, dateFrom, dateTo, accountingReceivedParam, sellers]);
 
   // Gõ tìm kiếm: debounce 300ms để tránh gọi API liên tục theo từng ký tự; đổi bộ lọc luôn quay về trang 1
   useEffect(() => {
@@ -324,6 +360,12 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
         const part = await api.getInvoiceGoodsExtraMap(chunk).catch(() => ({}));
         extraMap = { ...extraMap, ...part };
       }
+      // Số HĐNT theo khách hàng — tra theo lô 500 hóa đơn/lần (mảng mã/tên khách gửi lên RPC).
+      let hdntList = [];
+      for (let i = 0; i < all.length; i += 500) {
+        const part = await api.getHdntForInvoices(all.slice(i, i + 500)).catch(() => []);
+        hdntList = hdntList.concat(part);
+      }
 
       const data = all.map((r, i) => {
         const w = extraMap[r.id] || {};
@@ -338,8 +380,11 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
           'Số mặt hàng': Array.isArray(r.goods) ? r.goods.length : (r.goods ? 1 : 0),
           'Tổng tiền': Math.round(Number(r.total) || 0),
           'Tình trạng hóa đơn': r.note || '',
+          'Số hợp đồng': matchHdntNumbers(r, hdntList, sellers).join(', '),
           'Sale gửi': w.sale_sent ? 'Đã gửi' : 'Chưa gửi',
           'Ngày Sale gửi': w.sale_sent_date || '',
+          'Hợp đồng Sale gửi': w.sale_contract_sent ? 'Đã gửi' : 'Chưa gửi',
+          'Ngày HĐ Sale gửi': w.sale_contract_sent_date || '',
           'Nhân sự gửi': w.hr_sent ? 'Đã gửi' : 'Chưa gửi',
           'Ngày Nhân sự gửi': w.hr_sent_date || '',
           'Kế toán nhận hồ sơ': w.accounting_received ? 'Đã nhận' : 'Chưa nhận',
@@ -352,14 +397,15 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
       });
 
       const ws = XLSX.utils.json_to_sheet(data);
+      // Thứ tự khớp đúng thứ tự key trong object data ở trên.
       ws['!cols'] = [
-        { wch: 6 }, { wch: 16 }, { wch: 12 }, { wch: 36 }, { wch: 14 },
-        { wch: 30 }, { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 18 },
-        { wch: 24 },
-        { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 12 },
-        { wch: 14 }, { wch: 18 },
-        { wch: 16 }, { wch: 12 },
-        { wch: 24 },
+        { wch: 6 }, { wch: 16 }, { wch: 12 }, { wch: 36 }, { wch: 14 },   // STT, Số HĐ, Ngày, Khách, Mã khách
+        { wch: 30 }, { wch: 18 }, { wch: 12 }, { wch: 16 },               // Công ty bán, Sale, Số mặt hàng, Tổng tiền
+        { wch: 18 }, { wch: 24 },                                         // Tình trạng hóa đơn, Số HĐNT
+        { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 16 },               // Sale gửi, Ngày, HĐ Sale gửi, Ngày HĐ
+        { wch: 12 }, { wch: 16 },                                         // Nhân sự gửi, Ngày
+        { wch: 18 }, { wch: 22 }, { wch: 20 }, { wch: 24 },               // KT nhận hồ sơ/ngày, KT nhận HĐ/ngày
+        { wch: 12 }, { wch: 24 },                                         // Hạn, Ghi chú hóa đơn
       ];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Hoa don');
@@ -732,8 +778,11 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
               <ResizableTh col="count"    className="text-center px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Số mặt hàng</ResizableTh>
               <ResizableTh col="total"    className="text-center px-5 py-3"         colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Tổng tiền</ResizableTh>
               <ResizableTh col="note"     className="text-center px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Tình trạng hóa đơn</ResizableTh>
+              <ResizableTh col="hdnt"     className="text-center px-5 py-3"          colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Số hợp đồng</ResizableTh>
               <ResizableTh col="sale_sent"                 className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Sale gửi</ResizableTh>
               <ResizableTh col="sale_sent_date"            className="text-center px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Sale gửi</ResizableTh>
+              <ResizableTh col="sale_contract_sent"        className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Hợp đồng Sale gửi</ResizableTh>
+              <ResizableTh col="sale_contract_sent_date"   className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày HĐ Sale gửi</ResizableTh>
               <ResizableTh col="hr_sent"                   className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Nhân sự gửi</ResizableTh>
               <ResizableTh col="hr_sent_date"               className="text-center px-3 py-3"   colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Ngày Nhân sự gửi</ResizableTh>
               <ResizableTh col="accounting_received"       className="text-center px-3 py-3" colWidths={colWidths} onResize={startResize} onReset={resetColWidth}>Kế toán nhận hồ sơ</ResizableTh>
@@ -795,6 +844,9 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                       inv.note || <span className="text-gray-300">—</span>
                     )}
                   </td>
+                  <td className="px-5 py-3 font-mono text-gray-700 truncate" title={(inv.hdnt_numbers || []).join('\n')}>
+                    {inv.hdnt_numbers?.length ? inv.hdnt_numbers.join(', ') : <span className="text-gray-300">—</span>}
+                  </td>
                   {/* 9 cột theo dõi hồ sơ: Sale (không chỉ Admin) cũng sửa được — DB có trigger riêng
                       chặn non-admin sửa các cột khác (số tiền, hàng hóa...) ngoài 9 cột này. */}
                   <td className="px-3 py-3 text-center">
@@ -809,6 +861,20 @@ export const InvoiceGoodsPage = ({ onBulkImport, onDelete, onDeleteMany, isAdmin
                       <WorkflowDatePicker value={inv.sale_sent_date} readOnly={!canEdit('sale_sent_date')} disabled={cellStatus[cellKey(inv.id, 'sale_sent_date')] === 'saving' || !canEdit('sale_sent_date')}
                         onChange={v => saveWorkflowDate(inv.id, 'sale_sent_date', v, inv.sale_sent_date)}
                         onClear={() => saveWorkflowDate(inv.id, 'sale_sent_date', '', inv.sale_sent_date)} />
+                    </WorkflowCell>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <WorkflowCell saving={cellStatus[cellKey(inv.id, 'sale_contract_sent')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'sale_contract_sent')] === 'saved'}>
+                      <input type="checkbox" checked={!!inv.sale_contract_sent} disabled={cellStatus[cellKey(inv.id, 'sale_contract_sent')] === 'saving' || !canEdit('sale_contract_sent')}
+                        onChange={() => toggleWorkflowFlag(inv.id, 'sale_contract_sent', !!inv.sale_contract_sent)}
+                        className="cursor-pointer w-4 h-4 accent-blue-600" title="Tích khi Sale đã gửi hợp đồng" />
+                    </WorkflowCell>
+                  </td>
+                  <td className="px-3 py-3">
+                    <WorkflowCell saving={cellStatus[cellKey(inv.id, 'sale_contract_sent_date')] === 'saving'} saved={cellStatus[cellKey(inv.id, 'sale_contract_sent_date')] === 'saved'}>
+                      <WorkflowDatePicker value={inv.sale_contract_sent_date} readOnly={!canEdit('sale_contract_sent_date')} disabled={cellStatus[cellKey(inv.id, 'sale_contract_sent_date')] === 'saving' || !canEdit('sale_contract_sent_date')}
+                        onChange={v => saveWorkflowDate(inv.id, 'sale_contract_sent_date', v, inv.sale_contract_sent_date)}
+                        onClear={() => saveWorkflowDate(inv.id, 'sale_contract_sent_date', '', inv.sale_contract_sent_date)} />
                     </WorkflowCell>
                   </td>
                   <td className="px-3 py-3 text-center">

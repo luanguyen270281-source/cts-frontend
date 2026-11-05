@@ -33,6 +33,7 @@ async function base64ToBlob(base64, mediaType) {
 // trên bảng invoice_goods.
 const INVOICE_GOODS_WORKFLOW_FIELDS = [
   'sale_sent', 'sale_sent_date',
+  'sale_contract_sent', 'sale_contract_sent_date',
   'hr_sent', 'hr_sent_date',
   'accounting_received', 'accounting_received_date',
   'accounting_contract_received', 'accounting_contract_received_date',
@@ -460,6 +461,20 @@ export const api = {
     const map = {};
     (data || []).forEach(r => { const { id, ...rest } = r; map[id] = rest; });
     return map;
+  },
+
+  // Số HĐNT mua bán (toàn công ty) của các khách hàng trên 1 loạt hóa đơn — RPC security definer
+  // vì RLS contracts theo người tạo. Trả về danh sách thô, việc ghép theo khách + bên bán do
+  // InvoiceGoodsPage tự làm (matchHdntNumbers).
+  async getHdntForInvoices(invoices) {
+    const codes = [...new Set(invoices.map(r => (r.customer_code || '').trim()).filter(Boolean))];
+    const names = [...new Set(invoices.map(r => (r.customer_name || '').trim().toLowerCase()).filter(Boolean))];
+    if (codes.length === 0 && names.length === 0) return [];
+    const { data, error } = await supabase.rpc('invoice_goods_hdnt_numbers', {
+      p_customer_codes: codes, p_customer_names: names,
+    });
+    if (error) throw new Error(error.message);
+    return data || [];
   },
 
   // Lấy số đề nghị thanh toán kế tiếp — do Supabase cấp phát (sequence), đảm bảo luôn tăng dần
